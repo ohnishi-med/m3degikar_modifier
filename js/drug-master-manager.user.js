@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.5
+// @version      1.6
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -17,8 +17,7 @@
 //       採用薬のオプティミスティックUI反映（タイムラグ解消）を追加。
 // v1.2: 作者情報の統一。
 // v1.3: 「カプセル」等の一般名詞がマスター登録された際、すべてのカプセル剤が部分一致で採用扱いになるバグを修正。
-// v1.4: 「セット」タブでも採用薬の色付け判定が動作するように対象範囲を拡張。
-// v1.5: 指定外の「全て」タブでの動作を除外（投薬・セットのみに限定）。
+// v1.6: バージョン1.3の安定版をベースに、「セット」タブでのみ動作を許可する処理を安全に追加。
 // ======================================================================
 
 (function () {
@@ -72,9 +71,9 @@
             }
         });
 
-        // 非アクティブ時はリセットして終了（不要なタブでの表示防止）
+        // 非アクティブ時はリセットして終了（診察タブなどでの表示防止）
         if (!isTargetTabActive) {
-            document.querySelectorAll('[data-processed="true"]').forEach(row => {
+            document.querySelectorAll('a.css-cgnoip[data-processed="true"]').forEach(row => {
                 row.style.backgroundColor = ""; row.style.borderLeft = ""; row.style.opacity = "";
                 row.querySelectorAll('.saiyo-reg-btn').forEach(b => b.remove());
                 delete row.dataset.processed;
@@ -82,19 +81,13 @@
             return;
         }
 
-        // セットの行は a.css-cgnoip ではなく div などかもしれないため、少し広めに取る（通常のリスト要素クラス等も含む）
-        // ただし、デジカルのUIとして使われやすいクラスを複数指定
-        const rows = document.querySelectorAll('a.css-cgnoip, div[role="listitem"] > div, div.css-cgnoip');
+        const rows = document.querySelectorAll('a.css-cgnoip');
         rows.forEach(row => {
-            if (row.dataset.processed === "true") return;
-
-            // 薬のアイコンを探す（通常の投薬タブ用）
+            // 薬アイコンがない行はスキップ
             const drugIcon = row.querySelector('[data-treatment-item-type="medication_drug"]');
-            
-            // セットタブなどの場合、薬アイコンが表示されないことがあるため、
-            // アイコンが無くても「要素内のテキスト」がマスターの薬名と一致すれば処理を続行する
-            const nameSpans = row.querySelectorAll('span.css-q5yng0, span');
-            if (nameSpans.length === 0) return;
+            if (!drugIcon || row.dataset.processed === "true") return;
+
+            const nameSpans = row.querySelectorAll('span.css-q5yng0');
             let allSaiyo = true;
 
             nameSpans.forEach(span => {
