@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         デジカルBML送信完了検知
 // @namespace    http://tampermonkey.net/
-// @version      2.8
+// @version      2.9
 // @description  「送信」完了後、右側のBMLボタンの色のみを変える（1回:黄、2回以上:赤）
 // @author       Tsuyoshi Ohnishi
 // @match        https://digikar.jp/karte/patients/*
@@ -17,6 +17,8 @@
 // v2.5: 会計送信等での誤作動を防止するため、BML送信特有のダイアログメッセージ検知を追加。
 // v2.6: 3回目以降の送信時、ボタン右上に青文字で回数バッジを表示するよう対応。
 // v2.7: 3回目以降にDOM競合でボタンが押せなくなる不具合を、CSS疑似要素化により修正。
+// v2.8: 作者情報の統一とバージョン更新。
+// v2.9: 重いレイアウト再計算処理（getComputedStyle）を削除し、フリーズを根本解決。
 // ======================================================================
 
 (function () {
@@ -42,10 +44,12 @@
         const btn = getBmlButton();
         if (!btn || bmlCompleteCount === 0) return;
 
-        // 子要素の絶対配置のため、ボタン自体をrelativeにする
-        if (window.getComputedStyle(btn).position === 'static') {
-            btn.style.position = 'relative';
-        }
+        // 重いレイアウト計算を発生させないよう、すでに状態が適用されていればスキップ
+        if (btn.getAttribute('data-bml-count-state') == bmlCompleteCount) return;
+        btn.setAttribute('data-bml-count-state', bmlCompleteCount);
+
+        // 子要素の絶対配置のため、ボタン自体をrelativeにする (getComputedStyleは重いので直接指定)
+        btn.style.position = 'relative';
 
         if (bmlCompleteCount === 1) {
             // 1回送信済み：黄色
