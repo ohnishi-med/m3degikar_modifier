@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.3
+// @version      1.4
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -17,6 +17,7 @@
 //       採用薬のオプティミスティックUI反映（タイムラグ解消）を追加。
 // v1.2: 作者情報の統一。
 // v1.3: 「カプセル」等の一般名詞がマスター登録された際、すべてのカプセル剤が部分一致で採用扱いになるバグを修正。
+// v1.4: 「セット」タブでも採用薬の色付け判定が動作するように対象範囲を拡張。
 // ======================================================================
 
 (function () {
@@ -56,20 +57,23 @@
     fetchMaster();
 
     const updateUI = () => {
-        // 1. 「投薬」タブがアクティブかチェック
+        // 1. 「投薬」または「セット」タブがアクティブかチェック
         const tabs = document.querySelectorAll('li');
-        let isTouyakuTabActive = false;
+        let isTargetTabActive = false;
         tabs.forEach(tab => {
-            if (tab.innerText.includes("投薬")) {
+            const tabText = tab.innerText.trim();
+            if (tabText === "投薬" || tabText === "セット" || tabText === "全て") {
                 const style = window.getComputedStyle(tab);
                 const bgColor = style.backgroundColor;
-                if (!bgColor.includes("255, 255, 255") && bgColor !== "rgba(0, 0, 0, 0)" && bgColor !== "transparent") isTouyakuTabActive = true;
+                if (!bgColor.includes("255, 255, 255") && bgColor !== "rgba(0, 0, 0, 0)" && bgColor !== "transparent") {
+                    isTargetTabActive = true;
+                }
             }
         });
 
-        // 非アクティブ時はリセットして終了（診察タブなどでの表示防止）
-        if (!isTouyakuTabActive) {
-            document.querySelectorAll('a.css-cgnoip[data-processed="true"]').forEach(row => {
+        // 非アクティブ時はリセットして終了（不要なタブでの表示防止）
+        if (!isTargetTabActive) {
+            document.querySelectorAll('[data-processed="true"]').forEach(row => {
                 row.style.backgroundColor = ""; row.style.borderLeft = ""; row.style.opacity = "";
                 row.querySelectorAll('.saiyo-reg-btn').forEach(b => b.remove());
                 delete row.dataset.processed;
@@ -77,13 +81,19 @@
             return;
         }
 
-        const rows = document.querySelectorAll('a.css-cgnoip');
+        // セットの行は a.css-cgnoip ではなく div などかもしれないため、少し広めに取る（通常のリスト要素クラス等も含む）
+        // ただし、デジカルのUIとして使われやすいクラスを複数指定
+        const rows = document.querySelectorAll('a.css-cgnoip, div[role="listitem"] > div, div.css-cgnoip');
         rows.forEach(row => {
-            // 薬アイコンがない行はスキップ
-            const drugIcon = row.querySelector('[data-treatment-item-type="medication_drug"]');
-            if (!drugIcon || row.dataset.processed === "true") return;
+            if (row.dataset.processed === "true") return;
 
-            const nameSpans = row.querySelectorAll('span.css-q5yng0');
+            // 薬のアイコンを探す（通常の投薬タブ用）
+            const drugIcon = row.querySelector('[data-treatment-item-type="medication_drug"]');
+            
+            // セットタブなどの場合、薬アイコンが表示されないことがあるため、
+            // アイコンが無くても「要素内のテキスト」がマスターの薬名と一致すれば処理を続行する
+            const nameSpans = row.querySelectorAll('span.css-q5yng0, span');
+            if (nameSpans.length === 0) return;
             let allSaiyo = true;
 
             nameSpans.forEach(span => {
