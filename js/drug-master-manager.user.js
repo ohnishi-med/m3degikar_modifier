@@ -211,9 +211,8 @@
             // 薬名セルのテキストを抽出し、子要素（svg等）の表示文字を除外して純粋なテキストを取得
             const rawName = nameTd.innerText;
             if (isSaiyoMatch(rawName)) {
-                // 採用薬の場合は行の背景色と左ボーダーを変更
+                // 採用薬の場合は行の背景色のみ変更（左ボーダーは追加しない）
                 row.style.backgroundColor = "#e0f2f1"; // 薄いミントグリーン
-                if (firstTd) firstTd.style.borderLeft = "6px solid #009688";
                 nameTd.style.fontWeight = "bold";
             }
             row.dataset.processedKarte = "true";
