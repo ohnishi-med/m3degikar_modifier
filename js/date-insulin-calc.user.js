@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          日付・日数 & インスリン計算UI
 // @namespace     http://tampermonkey.net/
-// @version       5.1
+// @version       5.2
 // @description   日付計算とインスリン残量計算（空打ち2単位考慮）をヘッダーに統合
 // @author        Tsuyoshi Ohnishi
 // @match         https://digikar.jp/*
@@ -14,7 +14,7 @@
 // ======================================================================
 // 【更新履歴】
 // v5.1: Git運用と自動配信対応(英字ファイル名リネーム・最適化初版)
-//       10台以上のPCへの配信最適化のため、メタデータにアップデートURLを付与。
+// v5.2: インスリン計算機能の拡張。ランタスXR、アウィクリなどの規格（総量・空打ち量・投与間隔）に対応。
 // ======================================================================
 
 (function() {
@@ -32,27 +32,36 @@
 
     // --- 計算ロジック ---
 
-    function calculateInsulin(val) {
+    const INSULIN_TYPES = {
+        'default': { name: '通常(300)', total: 300, air: 2, interval: 'day' },
+        'lantus_xr': { name: 'ﾗﾝﾀｽXR(450)', total: 450, air: 3, interval: 'day' },
+        'awiqli_300': { name: 'ｱｳｨｸﾘ(300)', total: 300, air: 10, interval: 'week' },
+        'awiqli_700': { name: 'ｱｳｨｸﾘ(700)', total: 700, air: 10, interval: 'week' }
+    };
+
+    function calculateInsulin(val, typeKey) {
+        const config = INSULIN_TYPES[typeKey] || INSULIN_TYPES['default'];
         // "10-10-10" や "14" や "6-0-6" などの形式を分割
         const doses = val.split('-').map(s => s.trim());
-        let totalUnitsPerDay = 0;
+        let totalUnits = 0;
         let shotCount = 0;
 
         doses.forEach(d => {
             const unit = parseInt(d, 10);
             if (!isNaN(unit) && unit > 0) {
-                totalUnitsPerDay += unit;
+                totalUnits += unit;
                 shotCount++; // 注射する回数（0以外）をカウント
             }
         });
 
         if (shotCount === 0) return null;
 
-        // 【ロジック】 1日消費量 = 合計単位 + (回数 * 2単位の空打ち)
-        const dailyConsumption = totalUnitsPerDay + (shotCount * 2);
-        const daysLeft = Math.floor(300 / dailyConsumption);
+        // 1回(1日/1週)あたりの消費量
+        const consumption = totalUnits + (shotCount * config.air);
+        const intervalsLeft = Math.floor(config.total / consumption);
+        const daysLeft = config.interval === 'week' ? intervalsLeft * 7 : intervalsLeft;
 
-        return { days: daysLeft, daily: dailyConsumption };
+        return { days: daysLeft, intervals: intervalsLeft, intervalType: config.interval };
     }
 
     // --- (日付計算用関数は既存のまま) ---
@@ -83,14 +92,20 @@
         }
 
         // インスリン計算
+        const insSelect = document.getElementById('insulin-type-select');
+        const typeKey = insSelect ? insSelect.value : 'default';
         const insIn = document.getElementById(INSULIN_INPUT_ID);
         const insRes = document.getElementById(INSULIN_RESULT_ID);
         const insVal = insIn.value.trim();
         if (!insVal) { insRes.textContent = ''; }
         else {
-            const res = calculateInsulin(insVal);
+            const res = calculateInsulin(insVal, typeKey);
             if (res) {
-                insRes.innerHTML = `1本: <strong>${res.days}</strong>日分`;
+                if (res.intervalType === 'week') {
+                    insRes.innerHTML = `1本: <strong>${res.days}</strong>日分 (${res.intervals}週分)`;
+                } else {
+                    insRes.innerHTML = `1本: <strong>${res.days}</strong>日分`;
+                }
             } else {
                 insRes.textContent = 'err';
             }
@@ -124,7 +139,17 @@
         // インスリンセクション
         const insGroup = document.createElement('div');
         insGroup.className = 'calc-group';
+        
+        // オプションタグの生成
+        let optionsHtml = '';
+        for (const [key, conf] of Object.entries(INSULIN_TYPES)) {
+            optionsHtml += `<option value="${key}">${conf.name}</option>`;
+        }
+
         insGroup.innerHTML = `<span class="label-tag">💉</span>
+            <select id="insulin-type-select" class="calc-input" style="width:85px; margin-right:4px; padding:0; font-size:10px; cursor:pointer;">
+                ${optionsHtml}
+            </select>
             <input id="${INSULIN_INPUT_ID}" class="calc-input" style="width:70px;" placeholder="10-0-10">
             <div id="${INSULIN_RESULT_ID}" class="calc-res"></div>`;
 
@@ -151,6 +176,7 @@
         target.prepend(uiElements.container);
 
         document.getElementById(DATE_INPUT_ID).addEventListener('input', handleInput);
+        document.getElementById('insulin-type-select').addEventListener('change', handleInput);
         document.getElementById(INSULIN_INPUT_ID).addEventListener('input', handleInput);
     }
 
