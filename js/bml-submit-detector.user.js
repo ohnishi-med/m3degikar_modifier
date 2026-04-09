@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         デジカルBML送信完了検知（シンプル版）
 // @namespace    http://tampermonkey.net/
-// @version      2.4
+// @version      2.5
 // @description  「送信」完了後、右側のBMLボタンの色のみを変える（1回:黄、2回以上:赤）
 // @author       Gemini
 // @match        https://digikar.jp/karte/patients/*
@@ -14,6 +14,7 @@
 // 【更新履歴】
 // v2.4: Git運用と自動配信対応(英字ファイル名リネーム・最適化初版)
 //       10台以上のPCへの配信最適化のため、メタデータにアップデートURLを付与。
+// v2.5: 会計送信等での誤作動を防止するため、BML送信特有のダイアログメッセージ検知を追加。
 // ======================================================================
 
 (function() {
@@ -54,9 +55,12 @@
     document.addEventListener('click', function(e) {
         // ダイアログ内の「送信」ボタンが押されたときのみカウントアップ
         if (e.target.tagName === 'BUTTON' && e.target.textContent.trim() === '送信') {
-            bmlCompleteCount++;
-            // ダイアログが閉じるのを待って反映
-            setTimeout(updateStyle, 500);
+            // ダイアログ内にBML専用のメッセージが含まれるかチェック
+            if (document.body.innerText.includes('カルテの検査内容を依頼送信しますか？')) {
+                bmlCompleteCount++;
+                // ダイアログが閉じるのを待って反映
+                setTimeout(updateStyle, 500);
+            }
         }
     }, true);
 
