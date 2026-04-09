@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.6
+// @version      1.7
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -18,6 +18,7 @@
 // v1.2: 作者情報の統一。
 // v1.3: 「カプセル」等の一般名詞がマスター登録された際、すべてのカプセル剤が部分一致で採用扱いになるバグを修正。
 // v1.6: バージョン1.3の安定版をベースに、「セット」タブでのみ動作を許可する処理を安全に追加。
+// v1.7: カルテ（中央パネル）内で入力済みの薬剤のカラーリング機能を追加。あわせてセットタブの安全なカラーリング（ボタン非表示）を実装。
 // ======================================================================
 
 (function () {
@@ -56,124 +57,166 @@
 
     fetchMaster();
 
-    const updateUI = () => {
-        // 1. 「投薬」または「セット」タブがアクティブかチェック
-        const tabs = document.querySelectorAll('li');
-        let isTargetTabActive = false;
-        tabs.forEach(tab => {
-            const tabText = tab.innerText.trim();
-            if (tabText === "投薬" || tabText === "セット") {
-                const style = window.getComputedStyle(tab);
-                const bgColor = style.backgroundColor;
-                if (!bgColor.includes("255, 255, 255") && bgColor !== "rgba(0, 0, 0, 0)" && bgColor !== "transparent") {
-                    isTargetTabActive = true;
-                }
+    const isSaiyoMatch = (rawText) => {
+        const screenName = normalize(rawText);
+        if(!screenName) return false;
+        return saiyoMaster.some(masterItem => {
+            if (!masterItem) return false;
+            // 1. 完全一致なら採用
+            if (screenName === masterItem) return true;
+            // 2. カプセル等の短い単語は前方一致のみ
+            if (masterItem.length <= 4) {
+                return screenName.startsWith(masterItem) || masterItem.startsWith(screenName);
             }
+            // 3. 5文字以上は部分一致許容
+            return screenName.includes(masterItem) || masterItem.includes(screenName);
+        });
+    };
+
+    const updateUI = () => {
+        // --- 1. タブの状態判定（右パネル用） ---
+        const tabs = document.querySelectorAll('li');
+        let isTouyakuActive = false;
+        let isSetActive = false;
+        tabs.forEach(tab => {
+            const text = tab.innerText.trim();
+            const bgColor = window.getComputedStyle(tab).backgroundColor;
+            const isActive = !bgColor.includes("255, 255, 255") && bgColor !== "rgba(0, 0, 0, 0)" && bgColor !== "transparent";
+            if (text === "投薬" && isActive) isTouyakuActive = true;
+            if (text === "セット" && isActive) isSetActive = true;
         });
 
-        // 非アクティブ時はリセットして終了（診察タブなどでの表示防止）
-        if (!isTargetTabActive) {
-            document.querySelectorAll('a.css-cgnoip[data-processed="true"]').forEach(row => {
-                row.style.backgroundColor = ""; row.style.borderLeft = ""; row.style.opacity = "";
-                row.querySelectorAll('.saiyo-reg-btn').forEach(b => b.remove());
-                delete row.dataset.processed;
-            });
-            return;
-        }
+        // --- 2. 投薬タブ（右パネル）：カラーリング ＆ 「採用」ボタン表示 ---
+        if (isTouyakuActive) {
+            document.querySelectorAll('a.css-cgnoip').forEach(row => {
+                const drugIcon = row.querySelector('[data-treatment-item-type="medication_drug"]');
+                if (!drugIcon || row.dataset.processedTouyaku === "true") return;
 
-        const rows = document.querySelectorAll('a.css-cgnoip');
-        rows.forEach(row => {
-            // 薬アイコンがない行はスキップ
-            const drugIcon = row.querySelector('[data-treatment-item-type="medication_drug"]');
-            if (!drugIcon || row.dataset.processed === "true") return;
+                const nameSpans = row.querySelectorAll('span.css-q5yng0');
+                let allSaiyo = true;
 
-            const nameSpans = row.querySelectorAll('span.css-q5yng0');
-            let allSaiyo = true;
+                nameSpans.forEach(span => {
+                    const rawName = span.innerText;
+                    if (isSaiyoMatch(rawName)) {
+                        span.style.fontWeight = "bold";
+                    } else {
+                        allSaiyo = false;
+                        if (!span.querySelector('.saiyo-reg-btn')) {
+                            const btn = document.createElement('button');
+                            btn.innerText = '採用';
+                            btn.className = 'saiyo-reg-btn';
+                            btn.style = "margin-left:10px;padding:2px 8px;background-color:#ff9800;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;opacity:1 !important;vertical-align:middle;";
 
-            nameSpans.forEach(span => {
-                const rawName = span.innerText;
-                const screenName = normalize(rawName);
-
-                // 部分一致判定 (誤判定回避フィルター付き)
-                const isSaiyo = saiyoMaster.some(masterItem => {
-                    if (!masterItem) return false;
-                    
-                    // 1. 完全一致なら採用
-                    if (screenName === masterItem) return true;
-                    
-                    // 2. マスター側に「カプセル」(4文字以下)などが登録されている場合、
-                    // 「エソメプラゾールカプセル」の後半に部分一致して誤判定するのを防ぐため、
-                    // 4文字以下の短い単語の場合は「前方一致のみ」を許可する
-                    if (masterItem.length <= 4) {
-                        return screenName.startsWith(masterItem) || masterItem.startsWith(screenName);
+                            btn.onclick = (e) => {
+                                e.preventDefault(); e.stopPropagation();
+                                if (confirm(`「${rawName}」を採用登録しますか？`)) {
+                                    btn.innerText = '..';
+                                    GM_xmlhttpRequest({
+                                        method: "POST",
+                                        url: GAS_URL,
+                                        data: JSON.stringify({ name: rawName }),
+                                        onload: function (res) {
+                                            const result = JSON.parse(res.responseText);
+                                            if (result.status === "success") {
+                                                const normName = normalize(rawName);
+                                                if (!saiyoMaster.includes(normName)) {
+                                                    saiyoMaster.push(normName);
+                                                }
+                                                document.querySelectorAll('[data-processed-touyaku="true"]').forEach(r => {
+                                                    delete r.dataset.processedTouyaku;
+                                                });
+                                                updateUI();
+                                                fetchMaster();
+                                            } else {
+                                                alert("照合失敗\n送信名: " + result.debug.targetNorm);
+                                                btn.innerText = '採用';
+                                            }
+                                        }
+                                    });
+                                }
+                            };
+                            span.appendChild(btn);
+                        }
                     }
-
-                    // 3. 5文字以上であれば、従来通り部分一致も許容
-                    return screenName.includes(masterItem) || masterItem.includes(screenName);
                 });
 
-                if (isSaiyo) {
-                    span.style.fontWeight = "bold";
+                if (allSaiyo) {
+                    row.style.backgroundColor = "#e0f2f1"; // ミントグリーン
+                    row.style.borderLeft = "8px solid #009688";
+                    row.style.opacity = "1";
                 } else {
-                    allSaiyo = false;
-                    // 未採用の薬の横にだけボタンを出す
-                    if (!span.querySelector('.saiyo-reg-btn')) {
-                        const btn = document.createElement('button');
-                        btn.innerText = '採用';
-                        btn.className = 'saiyo-reg-btn';
-                        btn.style = "margin-left:10px;padding:2px 8px;background-color:#ff9800;color:white;border:none;border-radius:4px;font-size:11px;cursor:pointer;opacity:1 !important;vertical-align:middle;";
-
-                        btn.onclick = (e) => {
-                            e.preventDefault(); e.stopPropagation();
-                            if (confirm(`「${rawName}」を採用登録しますか？`)) {
-                                btn.innerText = '..';
-                                GM_xmlhttpRequest({
-                                    method: "POST",
-                                    url: GAS_URL,
-                                    data: JSON.stringify({ name: rawName }),
-                                    onload: function (res) {
-                                        const result = JSON.parse(res.responseText);
-                                        if (result.status === "success") {
-                                            // オプティミスティックUI: ローカルのマスタに即座に追加
-                                            const normName = normalize(rawName);
-                                            if (!saiyoMaster.includes(normName)) {
-                                                saiyoMaster.push(normName);
-                                            }
-
-                                            // 画面上の全要素の処理済みフラグをリセットし、即時描画
-                                            document.querySelectorAll('a.css-cgnoip[data-processed="true"]').forEach(r => {
-                                                delete r.dataset.processed;
-                                            });
-                                            updateUI();
-
-                                            fetchMaster();
-                                        } else {
-                                            let msg = `照合失敗\n送信名(正規化): ${result.debug.targetNorm}\n`;
-                                            msg += `マスタ生データ例: [${result.debug.masterRawSample}]\n`;
-                                            msg += `マスタ正規化例: ${result.debug.masterNormSample}`;
-                                            alert(msg);
-                                            btn.innerText = '採用';
-                                        }
-                                    }
-                                });
-                            }
-                        };
-                        span.appendChild(btn);
-                    }
+                    row.style.backgroundColor = "";
+                    row.style.borderLeft = "";
+                    row.style.opacity = "0.6"; // 未採用があれば薄くする
                 }
+                row.dataset.processedTouyaku = "true";
             });
+        } else {
+            // 投薬タブ以外になった時は、追加したボタンやスタイルをリセットする
+            document.querySelectorAll('a.css-cgnoip[data-processed-touyaku="true"]').forEach(row => {
+                row.style.backgroundColor = ""; row.style.borderLeft = ""; row.style.opacity = "";
+                row.querySelectorAll('.saiyo-reg-btn').forEach(b => b.remove());
+                row.querySelectorAll('span[style*="bold"]').forEach(s => s.style.fontWeight = "");
+                delete row.dataset.processedTouyaku;
+            });
+        }
 
-            // --- デザインの適用（以前のスタイルを復刻） ---
-            if (allSaiyo) {
-                row.style.backgroundColor = "#e0f2f1"; // ミントグリーン
-                row.style.borderLeft = "8px solid #009688"; // 左側の太線
-                row.style.opacity = "1";
-            } else {
-                row.style.backgroundColor = "";
-                row.style.borderLeft = "";
-                row.style.opacity = "0.6"; // 未採用があれば行全体を薄く
+        // --- 3. セットタブ（右パネル）：カラーリングのみ（ボタン追加なしで安全） ---
+        if (isSetActive) {
+            document.querySelectorAll('span.css-q5yng0').forEach(span => {
+                if (span.dataset.processedSet === "true") return;
+                
+                if (isSaiyoMatch(span.innerText)) {
+                    span.style.fontWeight = "bold";
+                    span.style.backgroundColor = "#e0f2f1"; // 背景ミントグリーン
+                    span.style.borderLeft = "4px solid #009688";
+                    span.style.paddingLeft = "4px";
+                    span.style.borderRadius = "2px";
+                }
+                span.dataset.processedSet = "true";
+            });
+        } else {
+            // セットタブ以外になった時はリセット
+            document.querySelectorAll('span[data-processed-set="true"]').forEach(span => {
+                span.style.fontWeight = "";
+                span.style.backgroundColor = "";
+                span.style.borderLeft = "";
+                span.style.paddingLeft = "";
+                span.style.borderRadius = "";
+                delete span.dataset.processedSet;
+            });
+        }
+
+        // --- 4. カルテ画面中央パネル：採用薬をカラーリング ---
+        // タブの状態に関わらず常に実行する
+        const karteRows = document.querySelectorAll('tr.dk-karte-treatment-group-item');
+        karteRows.forEach(row => {
+            if (row.dataset.processedKarte === "true") return;
+
+            const drugIcon = row.querySelector('[data-treatment-item-type="medication_drug"]');
+            if (!drugIcon) return; // 薬以外はスキップ
+
+            const tds = row.querySelectorAll('td.dk-table-karte-cont');
+            let nameTd = null;
+            let firstTd = tds[0];
+            // 薬アイコンが入っているセルの、1つ右のセルが「薬名」
+            for (let i = 0; i < tds.length; i++) {
+                if (tds[i].contains(drugIcon)) {
+                    if (tds[i + 1]) nameTd = tds[i + 1];
+                    break;
+                }
             }
-            row.dataset.processed = "true";
+            if (!nameTd) return;
+
+            // 薬名セルのテキストを抽出し、子要素（svg等）の表示文字を除外して純粋なテキストを取得
+            const rawName = nameTd.innerText;
+            if (isSaiyoMatch(rawName)) {
+                // 採用薬の場合は行の背景色と左ボーダーを変更
+                row.style.backgroundColor = "#e0f2f1"; // 薄いミントグリーン
+                if (firstTd) firstTd.style.borderLeft = "6px solid #009688";
+                nameTd.style.fontWeight = "bold";
+            }
+            row.dataset.processedKarte = "true";
         });
     };
 
