@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          日付・日数 & インスリン計算UI
 // @namespace     http://tampermonkey.net/
-// @version       5.2
+// @version       5.3
 // @description   日付計算とインスリン残量計算（空打ち2単位考慮）をヘッダーに統合
 // @author        Tsuyoshi Ohnishi
 // @match         https://digikar.jp/*
@@ -15,6 +15,7 @@
 // 【更新履歴】
 // v5.1: Git運用と自動配信対応(英字ファイル名リネーム・最適化初版)
 // v5.2: インスリン計算機能の拡張。ランタスXR、アウィクリなどの規格（総量・空打ち量・投与間隔）に対応。
+// v5.3: 次回外来日数とインスリン使用量の連動による、処方必要本数の自動算出機能を追加。
 // ======================================================================
 
 (function() {
@@ -69,6 +70,8 @@
     function calculateDaysDiff(t, now) { t.setHours(0,0,0,0); now.setHours(0,0,0,0); return Math.round((t - now) / 86400000); }
 
     function handleInput() {
+        let targetDays = 0;
+
         // 日付計算
         const dateIn = document.getElementById(DATE_INPUT_ID);
         const dateRes = document.getElementById(DATE_RESULT_ID);
@@ -84,9 +87,11 @@
                 let target = new Date(y, m, d);
                 if (!dateMatch[1] && calculateDaysDiff(target, today) < 0) target = new Date(y + 1, m, d);
                 const diff = calculateDaysDiff(target, today);
-                dateRes.innerHTML = `<strong>${Math.abs(diff)}</strong>${diff >= 0 ? '日後' : '日経過'}`;
+                targetDays = Math.abs(diff);
+                dateRes.innerHTML = `<strong>${targetDays}</strong>${diff >= 0 ? '日後' : '日経過'}`;
             } else if (!isNaN(dateVal)) {
-                const end = addDays(today, parseInt(dateVal, 10));
+                targetDays = parseInt(dateVal, 10);
+                const end = addDays(today, targetDays);
                 dateRes.innerHTML = `→ <strong>${(end.getMonth()+1)}/${end.getDate()}</strong>`;
             }
         }
@@ -101,11 +106,25 @@
         else {
             const res = calculateInsulin(insVal, typeKey);
             if (res) {
+                let baseStr = '';
                 if (res.intervalType === 'week') {
-                    insRes.innerHTML = `1本: <strong>${res.days}</strong>日分 (${res.intervals}週分)`;
+                    baseStr = `1本: <strong>${res.days}</strong>日分 (${res.intervals}週分)`;
                 } else {
-                    insRes.innerHTML = `1本: <strong>${res.days}</strong>日分`;
+                    baseStr = `1本: <strong>${res.days}</strong>日分`;
                 }
+
+                if (targetDays > 0) {
+                    let requiredPens = 0;
+                    if (res.intervalType === 'week') {
+                        const targetWeeks = Math.ceil(targetDays / 7);
+                        requiredPens = Math.ceil(targetWeeks / res.intervals);
+                    } else {
+                        requiredPens = Math.ceil(targetDays / res.days);
+                    }
+                    baseStr += `<span style="margin-left:8px; color:#d32f2f;">必要: <strong>${requiredPens}</strong>本</span>`;
+                }
+                
+                insRes.innerHTML = baseStr;
             } else {
                 insRes.textContent = 'err';
             }
