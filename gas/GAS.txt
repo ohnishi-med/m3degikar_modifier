@@ -1,0 +1,69 @@
+function doGet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const saiyoSheet = ss.getSheetByName("SaiyoList");
+  // シートが存在しない場合のエラー回避
+  if (!saiyoSheet) return ContentService.createTextOutput("Error: SaiyoList sheet not found");
+  
+  const data = saiyoSheet.getDataRange().getValues();
+  const saiyoList = data.slice(1).map(row => String(row[0]));
+  
+  return ContentService.createTextOutput(JSON.stringify(saiyoList))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  const params = JSON.parse(e.postData.contents);
+  const drugName = params.name; 
+  
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const masterSheet = ss.getSheetByName("MedicationMasterR8_4");
+  const lastRow = masterSheet.getLastRow();
+  const data = masterSheet.getRange(1, 6, lastRow, 1).getValues(); 
+  
+  const normalizedTarget = normalize(drugName);
+  let lastCheckedMasterRaw = "";
+  let lastCheckedMasterNorm = "";
+
+  for (let i = 0; i < data.length; i++) {
+    let rawMaster = String(data[i][0]);
+    let normalizedMaster = normalize(rawMaster);
+
+    if (normalizedMaster !== "" && normalizedTarget.indexOf(normalizedMaster) !== -1) {
+      masterSheet.getRange(i + 1, 1).setValue(1);
+      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+             .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // アレジオン付近の行(13610〜13625)の情報をログ用に保持
+    if (i >= 13610 && i <= 13625 && rawMaster.includes("アレジオン")) {
+      lastCheckedMasterRaw = rawMaster;
+      lastCheckedMasterNorm = normalizedMaster;
+    }
+  }
+
+  // 失敗時にデバッグ情報を返す
+  return ContentService.createTextOutput(JSON.stringify({
+    status: "not_found",
+    debug: {
+      targetNorm: normalizedTarget,
+      masterRawSample: lastCheckedMasterRaw,
+      masterNormSample: lastCheckedMasterNorm
+    }
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function normalize(str) {
+  if (!str) return "";
+  return str
+    // 1. 全角の感嘆符(!)からチルダ(~)まで（数字、英字、％、．を含む）を半角に変換
+    .replace(/[！-～]/g, function(s) {
+      return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+    })
+    // 2. あらゆる空白（全角、半角、特殊な空白）を完全に消去
+    .replace(/[\s　\u00A0\u3000]+/g, '')
+    // 3. 長音・カッコの処理
+    .replace(/[ー－―ー-]/g, '-')
+    .replace(/[（）()「」『』【】[\]]/g, '')
+    .toLowerCase()
+    .trim();
+}
