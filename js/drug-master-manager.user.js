@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.2
+// @version      1.3
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -15,6 +15,8 @@
 // v1.1: Git運用と自動配信対応(英字ファイル名リネーム・最適化初版)
 //       10台以上のPCへの配信最適化のため、メタデータにアップデートURLを付与。
 //       採用薬のオプティミスティックUI反映（タイムラグ解消）を追加。
+// v1.2: 作者情報の統一。
+// v1.3: 「カプセル」等の一般名詞がマスター登録された際、すべてのカプセル剤が部分一致で採用扱いになるバグを修正。
 // ======================================================================
 
 (function () {
@@ -25,7 +27,7 @@
 
     function normalize(str) {
         if (!str) return "";
-        return str
+        let norm = str
             .replace(/[！-～]/g, function (s) {
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
             })
@@ -34,6 +36,9 @@
             .replace(/[（）()「」『』【】[\]]/g, '')
             .toLowerCase()
             .trim();
+        
+        // 【般】などのマーカー文字が外れた後の「般」「局」等を前方から取り除き、照合精度を上げる
+        return norm.replace(/^(般|局|麻|劇|毒)/, '');
     }
 
     const fetchMaster = () => {
@@ -85,9 +90,21 @@
                 const rawName = span.innerText;
                 const screenName = normalize(rawName);
 
-                // 部分一致判定
+                // 部分一致判定 (誤判定回避フィルター付き)
                 const isSaiyo = saiyoMaster.some(masterItem => {
                     if (!masterItem) return false;
+                    
+                    // 1. 完全一致なら採用
+                    if (screenName === masterItem) return true;
+                    
+                    // 2. マスター側に「カプセル」(4文字以下)などが登録されている場合、
+                    // 「エソメプラゾールカプセル」の後半に部分一致して誤判定するのを防ぐため、
+                    // 4文字以下の短い単語の場合は「前方一致のみ」を許可する
+                    if (masterItem.length <= 4) {
+                        return screenName.startsWith(masterItem) || masterItem.startsWith(screenName);
+                    }
+
+                    // 3. 5文字以上であれば、従来通り部分一致も許容
                     return screenName.includes(masterItem) || masterItem.includes(screenName);
                 });
 
