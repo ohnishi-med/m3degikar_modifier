@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.7
+// @version      1.8
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -19,6 +19,7 @@
 // v1.3: 「カプセル」等の一般名詞がマスター登録された際、すべてのカプセル剤が部分一致で採用扱いになるバグを修正。
 // v1.6: バージョン1.3の安定版をベースに、「セット」タブでのみ動作を許可する処理を安全に追加。
 // v1.7: カルテ（中央パネル）内で入力済みの薬剤のカラーリング機能を追加。あわせてセットタブの安全なカラーリング（ボタン非表示）を実装。
+// v1.8: セットタブで薄色ミント背景が付く薬名の脇の小さな縦線を削除。カルテパネル行左のボーダー線を正常に表示。
 // ======================================================================
 
 (function () {
