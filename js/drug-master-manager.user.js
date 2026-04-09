@@ -2,7 +2,8 @@
 // @name         採用薬マスター管理ツール
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
-// @version      1.1
+// @author       Tsuyoshi Ohnishi
+// @version      1.2
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js

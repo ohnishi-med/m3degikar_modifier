@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         デジカルBML送信完了検知
 // @namespace    http://tampermonkey.net/
-// @version      2.7
+// @version      2.8
 // @description  「送信」完了後、右側のBMLボタンの色のみを変える（1回:黄、2回以上:赤）
-// @author       Gemini
+// @author       Tsuyoshi Ohnishi
 // @match        https://digikar.jp/karte/patients/*
 // @grant        none
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/bml-submit-detector.user.js

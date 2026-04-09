@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name セル塗り分け
+// @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.4
+// @version 4.3.2//2026.4.9v
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -16,7 +16,7 @@
 //         10台以上のPCへの配信最適化のため、メタデータにアップデートURLを付与。
 // ======================================================================
 
-(function() {
+(function () {
     'use strict';
 
     // ======================================================================
@@ -140,29 +140,29 @@
         return text;
     }
 
-/**
- * Rule 1: 15歳未満が小児科・自由診療・皮膚科以外を受診している場合に警告
- * @param {string} ageText - 年齢テキスト (8列目)
- * @param {string} deptText - 診療科テキスト (10列目)
- * @returns {boolean} - 警告が必要な場合にtrue
- */
-function checkMinorInAdultDept(ageText, deptText) {
-    const ageMatch = ageText.match(/^(\d+)/);
+    /**
+     * Rule 1: 15歳未満が小児科・自由診療・皮膚科以外を受診している場合に警告
+     * @param {string} ageText - 年齢テキスト (8列目)
+     * @param {string} deptText - 診療科テキスト (10列目)
+     * @returns {boolean} - 警告が必要な場合にtrue
+     */
+    function checkMinorInAdultDept(ageText, deptText) {
+        const ageMatch = ageText.match(/^(\d+)/);
 
-    if (!ageMatch) {
-        return false;
+        if (!ageMatch) {
+            return false;
+        }
+        const age = parseInt(ageMatch[1], 10);
+
+        if (age >= 15) {
+            return false;
+        }
+
+        const isCorrectDept = (deptText.includes("小児科") || deptText.includes("自由診療") || deptText.includes("皮膚科"));
+
+        // 15歳未満 AND 適切な診療科ではない場合に警告
+        return !isCorrectDept;
     }
-    const age = parseInt(ageMatch[1], 10);
-
-    if (age >= 15) {
-        return false;
-    }
-
-    const isCorrectDept = (deptText.includes("小児科") || deptText.includes("自由診療")|| deptText.includes("皮膚科"));
-
-    // 15歳未満 AND 適切な診療科ではない場合に警告
-    return !isCorrectDept;
-}
 
     function collectUniqueDoctorNames() {
         const uniqueDoctors = new Set();
@@ -191,9 +191,9 @@ function checkMinorInAdultDept(ageText, deptText) {
         return map;
     }
 
-/**
- * セルを走査し、配色マップと受付ルールに基づいて色を適用します。
- */
+    /**
+     * セルを走査し、配色マップと受付ルールに基づいて色を適用します。
+     */
     function applyColors() {
         // MutationObserverが発火するたびに、以前のエラー予約タイマーをリセット
         clearTimeout(toastDelayTimer);
@@ -201,9 +201,9 @@ function checkMinorInAdultDept(ageText, deptText) {
 
         // 500ms待って、データが読み込まれずにここが実行されたらエラーと見なす
         toastDelayTimer = setTimeout(() => {
-              // 500ms経ってもデータが来なかったり、処理が成功しなかった場合はエラー
-              showToast("テーブル構造のロードに失敗しました。ページを再読み込みしてください。");
-              toastDelayTimer = null; // タイマー実行後はクリア
+            // 500ms経ってもデータが来なかったり、処理が成功しなかった場合はエラー
+            showToast("テーブル構造のロードに失敗しました。ページを再読み込みしてください。");
+            toastDelayTimer = null; // タイマー実行後はクリア
         }, 500);
 
         // 医師名の色付けマップを再構築
@@ -297,13 +297,13 @@ function checkMinorInAdultDept(ageText, deptText) {
 
             // --- 8th Column (Age) Logic ---
             if (isMinorInAdultDeptWarning) {
-                   // 8列目（年齢）に警告色を適用 (オンラインの色を上書き)
+                // 8列目（年齢）に警告色を適用 (オンラインの色を上書き)
                 ageCell.style.setProperty('background-color', WARNING_STYLE.background);
                 ageCell.style.setProperty('color', WARNING_STYLE.color);
             }
 
             // --- 9th Column (Insurance) Logic ---
-// 【追加】現在の年度末（3/31）を計算
+            // 【追加】現在の年度末（3/31）を計算
             const today = new Date();
             const currentYear = today.getFullYear();
             const currentMonth = today.getMonth() + 1;
@@ -317,15 +317,15 @@ function checkMinorInAdultDept(ageText, deptText) {
             // 【修正】18歳の年度末までを対象とする判定
             // 18歳以下、かつ「自由診療」ではない場合に、公費入力があるかチェック
             const isMinorWithoutChildInsuranceWarning =
-                  !deptText.includes("自由診療") &&
-                  age <= 18 &&
-                  !hasPublicExpense;
+                !deptText.includes("自由診療") &&
+                age <= 18 &&
+                !hasPublicExpense;
 
             // 9列目に色を付ける必要があるかどうかの判定
             const isInsuranceCellStyleNeeded =
-                  (insuranceText === "保険無し" && !deptText.includes("自由診療")) || // 保険入力漏れ　検知
-                  (insuranceText !== "保険無し" && deptText.includes("自由診療")) ||  // 自費保険入力　検知
-                  isMinorWithoutChildInsuranceWarning;
+                (insuranceText === "保険無し" && !deptText.includes("自由診療")) || // 保険入力漏れ　検知
+                (insuranceText !== "保険無し" && deptText.includes("自由診療")) ||  // 自費保険入力　検知
+                isMinorWithoutChildInsuranceWarning;
 
             if (isInsuranceCellStyleNeeded) {
                 let backgroundStyle = NO_INSURANCE_STYLE.background;
@@ -429,7 +429,7 @@ function checkMinorInAdultDept(ageText, deptText) {
         const targetTable = document.querySelector(TABLE_SELECTOR);
 
         if (!targetTable) {
-             return;
+            return;
         }
 
         // isObserverInitializedのチェックはcheckAndStart()のポーリング内で不要
@@ -488,8 +488,8 @@ function checkMinorInAdultDept(ageText, deptText) {
         setTimeout(() => {
             // 処理開始前にURLの再チェックを行う (SPAナビゲーション中の保険)
             if (!window.location.href.startsWith(RECEPTION_URL_PREFIX)) {
-                 // Reception ページでなければ処理を中止（historyリスナーが次の遷移を捉える）
-                 return;
+                // Reception ページでなければ処理を中止（historyリスナーが次の遷移を捉える）
+                return;
             }
 
             const targetTable = document.querySelector(TABLE_SELECTOR);
@@ -543,14 +543,14 @@ function checkMinorInAdultDept(ageText, deptText) {
         };
 
         // history.pushStateを上書き
-        history.pushState = function() {
+        history.pushState = function () {
             originalPushState.apply(history, arguments);
             // pushStateの後に非同期で処理を呼び出す
             setTimeout(urlChanged, 0);
         };
 
         // history.replaceStateを上書き
-        history.replaceState = function() {
+        history.replaceState = function () {
             originalReplaceState.apply(history, arguments);
             // replaceStateの後に非同期で処理を呼び出す
             setTimeout(urlChanged, 0);
@@ -571,9 +571,9 @@ function checkMinorInAdultDept(ageText, deptText) {
     function startScript() {
         // URL変更の監視（一度だけ設定すればOK）
         if (!window.history.pushState.isHooked) {
-              setupHistoryListener();
-              // フック済みフラグを設定し、二重フックを防ぐ
-              window.history.pushState.isHooked = true;
+            setupHistoryListener();
+            // フック済みフラグを設定し、二重フックを防ぐ
+            window.history.pushState.isHooked = true;
         }
 
         // 初回ロード時にURLが /reception/ であれば即座に起動
