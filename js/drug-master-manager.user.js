@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.4
+// @version      1.5
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -18,6 +18,7 @@
 // v1.2: 作者情報の統一。
 // v1.3: 「カプセル」等の一般名詞がマスター登録された際、すべてのカプセル剤が部分一致で採用扱いになるバグを修正。
 // v1.4: 「セット」タブでも採用薬の色付け判定が動作するように対象範囲を拡張。
+// v1.5: 指定外の「全て」タブでの動作を除外（投薬・セットのみに限定）。
 // ======================================================================
 
 (function () {
@@ -62,7 +63,7 @@
         let isTargetTabActive = false;
         tabs.forEach(tab => {
             const tabText = tab.innerText.trim();
-            if (tabText === "投薬" || tabText === "セット" || tabText === "全て") {
+            if (tabText === "投薬" || tabText === "セット") {
                 const style = window.getComputedStyle(tab);
                 const bgColor = style.backgroundColor;
                 if (!bgColor.includes("255, 255, 255") && bgColor !== "rgba(0, 0, 0, 0)" && bgColor !== "transparent") {
