@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         デジカルBML送信完了検知
 // @namespace    http://tampermonkey.net/
-// @version      2.6
+// @version      2.7
 // @description  「送信」完了後、右側のBMLボタンの色のみを変える（1回:黄、2回以上:赤）
 // @author       Gemini
 // @match        https://digikar.jp/karte/patients/*
@@ -16,6 +16,7 @@
 //       10台以上のPCへの配信最適化のため、メタデータにアップデートURLを付与。
 // v2.5: 会計送信等での誤作動を防止するため、BML送信特有のダイアログメッセージ検知を追加。
 // v2.6: 3回目以降の送信時、ボタン右上に青文字で回数バッジを表示するよう対応。
+// v2.7: 3回目以降にDOM競合でボタンが押せなくなる不具合を、CSS疑似要素化により修正。
 // ======================================================================
 
 (function () {
@@ -57,23 +58,28 @@
             
             if (bmlCompleteCount >= 3) {
                 // 3回目以降：右上に回数バッジを表示
-                let badge = btn.querySelector('.bml-count-badge');
-                if (!badge) {
-                    badge = document.createElement('span');
-                    badge.className = 'bml-count-badge';
-                    Object.assign(badge.style, {
-                        position: 'absolute',
-                        top: '2px',
-                        right: '4px',
-                        color: '#1a73e8', // 視認性の良い青色
-                        fontSize: '14px',
-                        fontWeight: 'bold',
-                        lineHeight: '1',
-                        zIndex: '10'
-                    });
-                    btn.appendChild(badge);
+                // ※ReactのDOM管理と競合してフリーズするのを防ぐため、spanの追加ではなくCSS疑似要素を使用
+                if (!document.getElementById('bml-badge-style')) {
+                    const style = document.createElement('style');
+                    style.id = 'bml-badge-style';
+                    style.textContent = `
+                        .bml-badge-btn::after {
+                            content: attr(data-bml-count);
+                            position: absolute;
+                            top: 2px;
+                            right: 4px;
+                            color: #1a73e8;
+                            font-size: 14px;
+                            font-weight: bold;
+                            line-height: 1;
+                            z-index: 10;
+                            pointer-events: none;
+                        }
+                    `;
+                    document.head.appendChild(style);
                 }
-                badge.textContent = bmlCompleteCount;
+                btn.classList.add('bml-badge-btn');
+                btn.setAttribute('data-bml-count', bmlCompleteCount);
             }
         }
     };
