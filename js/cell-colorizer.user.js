@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name セル塗り分け（遷移対応）
+// @name セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.2//2026.4.9v
+// @version 4.4
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
