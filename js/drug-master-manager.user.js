@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         デジカル採用薬マスター管理ツール（薬単位判定版）
+// @name         採用薬マスター管理ツール
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @version      1.1
@@ -16,7 +16,7 @@
 //       採用薬のオプティミスティックUI反映（タイムラグ解消）を追加。
 // ======================================================================
 
-(function() {
+(function () {
     'use strict';
 
     const GAS_URL = "https://script.google.com/macros/s/AKfycbxgFjQwg_OKRyN4jRkh5nl9UsicvvNu3_hcdUtMLGEJ8Gx4WagzyXZ1sTetlXgHrTxZSQ/exec";
@@ -25,7 +25,7 @@
     function normalize(str) {
         if (!str) return "";
         return str
-            .replace(/[！-～]/g, function(s) {
+            .replace(/[！-～]/g, function (s) {
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
             })
             .replace(/[\s　\u00A0\u3000]+/g, '')
@@ -39,10 +39,10 @@
         GM_xmlhttpRequest({
             method: "GET",
             url: GAS_URL,
-            onload: function(res) {
+            onload: function (res) {
                 try {
                     saiyoMaster = JSON.parse(res.responseText).map(name => normalize(name));
-                } catch(e) {}
+                } catch (e) { }
             }
         });
     };
@@ -109,7 +109,7 @@
                                     method: "POST",
                                     url: GAS_URL,
                                     data: JSON.stringify({ name: rawName }),
-                                    onload: function(res) {
+                                    onload: function (res) {
                                         const result = JSON.parse(res.responseText);
                                         if (result.status === "success") {
                                             // オプティミスティックUI: ローカルのマスタに即座に追加
@@ -117,13 +117,13 @@
                                             if (!saiyoMaster.includes(normName)) {
                                                 saiyoMaster.push(normName);
                                             }
-                                            
+
                                             // 画面上の全要素の処理済みフラグをリセットし、即時描画
                                             document.querySelectorAll('a.css-cgnoip[data-processed="true"]').forEach(r => {
                                                 delete r.dataset.processed;
                                             });
                                             updateUI();
-                                            
+
                                             fetchMaster();
                                         } else {
                                             let msg = `照合失敗\n送信名(正規化): ${result.debug.targetNorm}\n`;
