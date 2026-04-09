@@ -169,9 +169,6 @@
                 if (isSaiyoMatch(span.innerText)) {
                     span.style.fontWeight = "bold";
                     span.style.backgroundColor = "#e0f2f1"; // 背景ミントグリーン
-                    span.style.borderLeft = "4px solid #009688";
-                    span.style.paddingLeft = "4px";
-                    span.style.borderRadius = "2px";
                 }
                 span.dataset.processedSet = "true";
             });
@@ -180,9 +177,6 @@
             document.querySelectorAll('span[data-processed-set="true"]').forEach(span => {
                 span.style.fontWeight = "";
                 span.style.backgroundColor = "";
-                span.style.borderLeft = "";
-                span.style.paddingLeft = "";
-                span.style.borderRadius = "";
                 delete span.dataset.processedSet;
             });
         }
@@ -211,8 +205,8 @@
             // 薬名セルのテキストを抽出し、子要素（svg等）の表示文字を除外して純粋なテキストを取得
             const rawName = nameTd.innerText;
             if (isSaiyoMatch(rawName)) {
-                // 採用薬の場合は行の背景色のみ変更（左ボーダーは追加しない）
                 row.style.backgroundColor = "#e0f2f1"; // 薄いミントグリーン
+                if (firstTd) firstTd.style.borderLeft = "6px solid #009688";
                 nameTd.style.fontWeight = "bold";
             }
             row.dataset.processedKarte = "true";
