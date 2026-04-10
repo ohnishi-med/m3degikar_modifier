@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name          日付・日数 & インスリン計算UI
 // @namespace     http://tampermonkey.net/
-// @version       5.3
+// @version       5.4
 // @description   日付計算とインスリン残量計算（空打ち2単位考慮）をヘッダーに統合
 // @author        Tsuyoshi Ohnishi
 // @match         https://digikar.jp/*
@@ -16,6 +16,7 @@
 // v5.1: Git運用と自動配信対応(英字ファイル名リネーム・最適化初版)
 // v5.2: インスリン計算機能の拡張。ランタスXR、アウィクリなどの規格（総量・空打ち量・投与間隔）に対応。
 // v5.3: 次回外来日数とインスリン使用量の連動による、処方必要本数の自動算出機能を追加。
+// v5.4: 日付計算アルゴリズム変更。年省略時、翌年繰り上げ後が200日以上先になる場合は過去日付（前年）として計算。
 // ======================================================================
 
 (function() {
@@ -85,8 +86,18 @@
                 const d = parseInt(dateMatch[3], 10);
                 let y = dateMatch[1] ? parseInt(dateMatch[1], 10) : today.getFullYear();
                 let target = new Date(y, m, d);
-                if (!dateMatch[1] && calculateDaysDiff(target, today) < 0) target = new Date(y + 1, m, d);
-                const diff = calculateDaysDiff(target, today);
+                if (!dateMatch[1]) {
+                    // step1: 次に訪れる日付を求める（今年が過去なら翌年へ）
+                    if (calculateDaysDiff(new Date(y, m, d), new Date()) < 0) {
+                        target = new Date(y + 1, m, d);
+                    }
+                    // step2: 200日超なら1年前（過去日付）として扱う
+                    const diffNext = calculateDaysDiff(new Date(target), new Date());
+                    if (diffNext > 200) {
+                        target = new Date(target.getFullYear() - 1, m, d);
+                    }
+                }
+                const diff = calculateDaysDiff(target, new Date());
                 targetDays = Math.abs(diff);
                 dateRes.innerHTML = `<strong>${targetDays}</strong>${diff >= 0 ? '日後' : '日経過'}`;
             } else if (!isNaN(dateVal)) {
