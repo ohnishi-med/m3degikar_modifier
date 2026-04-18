@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      1.8
+// @version      1.9
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -20,6 +20,7 @@
 // v1.6: バージョン1.3の安定版をベースに、「セット」タブでのみ動作を許可する処理を安全に追加。
 // v1.7: カルテ（中央パネル）内で入力済みの薬剤のカラーリング機能を追加。あわせてセットタブの安全なカラーリング（ボタン非表示）を実装。
 // v1.8: セットタブで薄色ミント背景が付く薬名の脇の小さな縦線を削除。カルテパネル行左のボーダー線を正常に表示。
+// v1.9: 「酸化マグネシウム」での過剰なマッチングを解消（部分一致を廃止してメーカー名除去＆完全一致に厳密化）。
 // ======================================================================
 
 (function () {
@@ -36,6 +37,7 @@
             })
             .replace(/[\s　\u00A0\u3000]+/g, '')
             .replace(/[ー－―ー-]/g, '-')
+            .replace(/[（(「『【\[][^）)」』】\]]*[）)」』】\]]/g, '')
             .replace(/[（）()「」『』【】[\]]/g, '')
             .toLowerCase()
             .trim();
@@ -63,14 +65,9 @@
         if(!screenName) return false;
         return saiyoMaster.some(masterItem => {
             if (!masterItem) return false;
-            // 1. 完全一致なら採用
-            if (screenName === masterItem) return true;
-            // 2. カプセル等の短い単語は前方一致のみ
-            if (masterItem.length <= 4) {
-                return screenName.startsWith(masterItem) || masterItem.startsWith(screenName);
-            }
-            // 3. 5文字以上は部分一致許容
-            return screenName.includes(masterItem) || masterItem.includes(screenName);
+            // 括弧内のメーカー名などをあらかじめ除去した純粋な文字列同士で完全一致を行う
+            // 無用な部分一致による誤判定（酸化マグネシウムで全ての色が変わる等）を防ぐ
+            return screenName === masterItem;
         });
     };
 
