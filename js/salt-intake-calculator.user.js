@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.7
+// @version      1.1.8
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -154,38 +154,47 @@
                     await new Promise(r => setTimeout(r, 600));
 
                     const rows = document.querySelectorAll('.css-1azcrm');
-                    let filled = false;
+                    let filledCount = 0;
 
                     rows.forEach(row => {
-                        const label = row.querySelector('label')?.innerText || '';
+                        const labelText = row.innerText || '';
                         const input = row.querySelector('input');
                         if (!input) return;
 
-                        if (label.includes('田中式')) {
-                            input.value = res.tanaka;
-                            input.dispatchEvent(new Event('input', { bubbles: true }));
-                            filled = true;
-                        } else if (label.includes('川崎式')) {
-                            input.value = res.kawasaki;
-                            input.dispatchEvent(new Event('input', { bubbles: true }));
-                            filled = true;
+                        let val = null;
+                        if (labelText.includes('田中式')) val = res.tanaka;
+                        else if (labelText.includes('川崎式')) val = res.kawasaki;
+
+                        if (val) {
+                            input.value = val;
+                            // 複数のイベントを発火させてシステムに認識させる
+                            ['input', 'change', 'blur'].forEach(type => {
+                                input.dispatchEvent(new Event(type, { bubbles: true }));
+                            });
+                            console.log(`入力完了: ${labelText.split('\n')[0].trim()} -> ${val}`);
+                            filledCount++;
                         }
                     });
 
-                    if (filled) {
-                        // 「登録」ボタンを探してクリック
-                        const saveBtn = Array.from(document.querySelectorAll('button')).find(b => 
-                            b.innerText.trim() === '登録' || b.innerText.trim() === '確定'
-                        );
+                    if (filledCount > 0) {
+                        // 「登録」「確定」「更新」のいずれかを探す
+                        const saveBtn = Array.from(document.querySelectorAll('button')).find(b => {
+                            const txt = b.innerText.trim();
+                            return txt === '登録' || txt === '確定' || txt === '更新';
+                        });
                         
                         if (saveBtn) {
+                            console.log('保存ボタンをクリック:', saveBtn.innerText);
                             saveBtn.click();
                             modal.style.display = 'none';
-                            alert('田中式・川崎式の両方を入力し、登録を完了しました');
+                            alert(`田中式・川崎式を入力し、${saveBtn.innerText}を完了しました`);
                         } else {
-                            alert('数値は入力しましたが、最後の「登録」ボタンが見つかりませんでした。手動で確定させてください。');
+                            console.warn('保存ボタンが見つかりませんでした');
+                            alert('数値は入力しましたが、最後の保存ボタン（登録/確定/更新）が見つかりませんでした。');
                         }
                     } else {
+                        throw new Error('入力項目（田中式/川崎式）が見つかりませんでした。ダイアログが開いていないか、項目名が異なります。');
+                    }
                         throw new Error('入力項目（田中式/川崎式）が見つかりませんでした');
                     }
                 } catch (e) { alert(e.message); }
