@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.2.0
+// @version      1.2.1
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -153,47 +153,45 @@
                     add.click();
                     await new Promise(r => setTimeout(r, 600));
 
-                    // ダイアログの表示と入力準備を待つ (1.0秒)
+                    // ダイアログの表示を待つ
                     await new Promise(r => setTimeout(r, 1000));
 
-                    // 仮想スクロール対策：入力エリアを一番下までスクロールさせる
                     const scrollContainer = document.querySelector('div[data-scroll="on"]');
-                    if (scrollContainer) {
-                        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-                        console.log('スクロール実行');
-                        await new Promise(r => setTimeout(r, 500)); // スクロール後の描画待ち
+                    if (!scrollContainer) throw new Error('スクロールエリアが見つかりません');
+
+                    let filledCount = 0;
+                    const maxScrollAttempts = 10;
+                    
+                    for (let i = 0; i < maxScrollAttempts; i++) {
+                        const rows = document.querySelectorAll('.css-1azcrm');
+                        rows.forEach(row => {
+                            const label = row.querySelector('label');
+                            if (!label) return;
+                            const labelText = label.innerText.trim();
+                            const input = row.querySelector('input');
+                            if (!input || input.value) return; // すでに入力済みならスキップ
+
+                            let val = null;
+                            if (labelText.includes('田中式')) val = res.tanaka;
+                            else if (labelText.includes('川崎式')) val = res.kawasaki;
+
+                            if (val) {
+                                input.focus();
+                                input.value = val;
+                                ['input', 'change', 'blur'].forEach(t => input.dispatchEvent(new Event(t, { bubbles: true })));
+                                console.log(`発見・入力: ${labelText} -> ${val}`);
+                                filledCount++;
+                            }
+                        });
+
+                        if (filledCount >= 2) break; // 両方埋まったら終了
+
+                        // 下にスクロールして次の項目を読み込ませる
+                        scrollContainer.scrollTop += 500;
+                        await new Promise(r => setTimeout(r, 300)); // 描画を待つ
                     }
 
-                    const rows = document.querySelectorAll('.css-1azcrm');
-                    console.log(`項目数: ${rows.length}`);
-                    let filledCount = 0;
-
-                    rows.forEach(row => {
-                        const label = row.querySelector('label');
-                        if (!label) return;
-                        
-                        const labelText = label.innerText.trim();
-                        const input = row.querySelector('input');
-                        if (!input) return;
-
-                        let val = null;
-                        if (labelText.includes('田中式')) val = res.tanaka;
-                        else if (labelText.includes('川崎式')) val = res.kawasaki;
-
-                        if (val) {
-                            console.log(`項目発見: ${labelText} -> ${val} を入力します`);
-                            input.focus();
-                            input.value = val;
-                            // システムに認識させるためのイベント発火
-                            ['input', 'change', 'blur'].forEach(type => {
-                                input.dispatchEvent(new Event(type, { bubbles: true }));
-                            });
-                            filledCount++;
-                        }
-                    });
-
                     if (filledCount > 0) {
-                        // 少し待ってから保存ボタンをクリック
                         await new Promise(r => setTimeout(r, 300));
                         const saveBtn = Array.from(document.querySelectorAll('button')).find(b => {
                             const txt = b.innerText.trim();
@@ -201,15 +199,12 @@
                         });
                         
                         if (saveBtn) {
-                            console.log('保存ボタンをクリック:', saveBtn.innerText);
                             saveBtn.click();
                             modal.style.display = 'none';
-                            alert('田中式・川崎式を入力し、登録を完了しました');
-                        } else {
-                            alert('数値は入力しましたが、最後の保存ボタンが見つかりませんでした。');
+                            alert('田中式・川崎式を入力し、登録しました');
                         }
                     } else {
-                        throw new Error('「田中式」または「川崎式」の入力項目が見つかりませんでした。項目名が一致しているか確認してください。');
+                        throw new Error('スクロールしても入力項目が見つかりませんでした。');
                     }
                         throw new Error('入力項目（田中式/川崎式）が見つかりませんでした');
                     }
