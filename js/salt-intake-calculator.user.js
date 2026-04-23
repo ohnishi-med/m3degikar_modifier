@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.8
+// @version      1.1.9
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -153,11 +153,18 @@
                     add.click();
                     await new Promise(r => setTimeout(r, 600));
 
+                    // ダイアログの表示と入力準備を待つ (1.0秒)
+                    await new Promise(r => setTimeout(r, 1000));
+
                     const rows = document.querySelectorAll('.css-1azcrm');
+                    console.log(`項目数: ${rows.length}`);
                     let filledCount = 0;
 
                     rows.forEach(row => {
-                        const labelText = row.innerText || '';
+                        const label = row.querySelector('label');
+                        if (!label) return;
+                        
+                        const labelText = label.innerText.trim();
                         const input = row.querySelector('input');
                         if (!input) return;
 
@@ -166,18 +173,20 @@
                         else if (labelText.includes('川崎式')) val = res.kawasaki;
 
                         if (val) {
+                            console.log(`項目発見: ${labelText} -> ${val} を入力します`);
+                            input.focus();
                             input.value = val;
-                            // 複数のイベントを発火させてシステムに認識させる
+                            // システムに認識させるためのイベント発火
                             ['input', 'change', 'blur'].forEach(type => {
                                 input.dispatchEvent(new Event(type, { bubbles: true }));
                             });
-                            console.log(`入力完了: ${labelText.split('\n')[0].trim()} -> ${val}`);
                             filledCount++;
                         }
                     });
 
                     if (filledCount > 0) {
-                        // 「登録」「確定」「更新」のいずれかを探す
+                        // 少し待ってから保存ボタンをクリック
+                        await new Promise(r => setTimeout(r, 300));
                         const saveBtn = Array.from(document.querySelectorAll('button')).find(b => {
                             const txt = b.innerText.trim();
                             return txt === '登録' || txt === '確定' || txt === '更新';
@@ -187,13 +196,12 @@
                             console.log('保存ボタンをクリック:', saveBtn.innerText);
                             saveBtn.click();
                             modal.style.display = 'none';
-                            alert(`田中式・川崎式を入力し、${saveBtn.innerText}を完了しました`);
+                            alert('田中式・川崎式を入力し、登録を完了しました');
                         } else {
-                            console.warn('保存ボタンが見つかりませんでした');
-                            alert('数値は入力しましたが、最後の保存ボタン（登録/確定/更新）が見つかりませんでした。');
+                            alert('数値は入力しましたが、最後の保存ボタンが見つかりませんでした。');
                         }
                     } else {
-                        throw new Error('入力項目（田中式/川崎式）が見つかりませんでした。ダイアログが開いていないか、項目名が異なります。');
+                        throw new Error('「田中式」または「川崎式」の入力項目が見つかりませんでした。項目名が一致しているか確認してください。');
                     }
                         throw new Error('入力項目（田中式/川崎式）が見つかりませんでした');
                     }
