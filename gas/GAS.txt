@@ -54,16 +54,23 @@ function doPost(e) {
 
 function normalize(str) {
   if (!str) return "";
-  return str
-    // 1. 全角の感嘆符(!)からチルダ(~)まで（数字、英字、％、．を含む）を半角に変換
+  let norm = str
+    // 1. 全角の感嘆符(!)からチルダ(~)までを半角に変換
     .replace(/[！-～]/g, function(s) {
       return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
     })
-    // 2. あらゆる空白（全角、半角、特殊な空白）を完全に消去
+    // 2. あらゆる空白を完全に消去
     .replace(/[\s　\u00A0\u3000]+/g, '')
     // 3. 長音・カッコの処理
     .replace(/[ー－―ー-]/g, '-')
+    // 4. 括弧の記号のみを削除し、中身（メーカー名等）は保持して厳密に判定する
     .replace(/[（）()「」『』【】[\]]/g, '')
     .toLowerCase()
     .trim();
+
+  // 5. 接頭辞の削除
+  norm = norm.replace(/^(般|局|麻|劇|毒)/, '');
+  
+  // 6. MT/BSなどの略称削除
+  return norm.replace(/(mt|bs)$/i, '');
 }
