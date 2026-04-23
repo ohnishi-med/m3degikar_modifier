@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.2.1
+// @version      1.2.2
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -13,22 +13,16 @@
 (function () {
     'use strict';
 
-    /**
-     * データ抽出関数群
-     */
     function extractData() {
-        // SOAPから身長・体重
         const soap = document.querySelector('.ProseMirror')?.innerText || '';
         const height = (soap.match(/【身長】\s*(\d+(\.\d+)?)cm/) || [])[1];
         const weightMatches = [...soap.matchAll(/(\d+\/\d+)\s*(\d+(\.\d+)?)kg/g)];
         const weight = weightMatches.length > 0 ? weightMatches[weightMatches.length - 1][2] : null;
 
-        // ヘッダーから年齢・性別
         const bodyText = document.body.innerText.substring(0, 10000);
         const age = (bodyText.match(/(\d+)歳/) || [])[1];
         const gender = bodyText.includes('女') ? 'female' : 'male';
 
-        // 検査テーブルからNa/Cr
         let uNa = null, uCr = null;
         document.querySelectorAll('tr').forEach(row => {
             if (row.cells.length < 2) return;
@@ -57,11 +51,7 @@
         return { tanaka: salt_t.toFixed(1), kawasaki: salt_k.toFixed(1) };
     }
 
-    /**
-     * UI構築
-     */
     const initUI = () => {
-        // 起動ボタン
         const trigger = document.createElement('div');
         trigger.id = 'salt-trigger';
         trigger.innerText = '推定塩分計算';
@@ -75,7 +65,6 @@
         trigger.onmouseout = () => trigger.style.transform = 'scale(1)';
         document.body.appendChild(trigger);
 
-        // 結果モーダル
         const modal = document.createElement('div');
         modal.id = 'salt-modal';
         Object.assign(modal.style, {
@@ -88,15 +77,12 @@
 
         trigger.onclick = async () => {
             console.log('推定塩分計算: 処理開始');
-            
-            // 1. 「検査結果」タブを探してクリック
             const labTab = Array.from(document.querySelectorAll('li')).find(li => 
                 li.innerText.trim() === '検査結果' || 
                 Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果')
             );
 
             if (labTab) {
-                console.log('検査結果タブを発見:', labTab);
                 const events = ['mousedown', 'mouseup', 'click'];
                 events.forEach(type => {
                     const event = new MouseEvent(type, { bubbles: true, cancelable: true, view: window });
@@ -143,7 +129,6 @@
                 regBtn.disabled = true;
 
                 try {
-                    // 誤作動防止：SVGのパスデータを確認して「プラス（＋）」ボタンを正確に特定
                     const add = Array.from(document.querySelectorAll('button.css-1nnxsgs')).find(b => {
                         const path = b.querySelector('path');
                         return path && path.getAttribute('d') === 'M13 11h9v2h-9v9h-2v-9H2v-2h9V2h2z';
@@ -151,25 +136,20 @@
                     
                     if (!add) throw new Error('「追加（＋）」ボタンが見つかりません');
                     add.click();
-                    await new Promise(r => setTimeout(r, 600));
-
-                    // ダイアログの表示を待つ
                     await new Promise(r => setTimeout(r, 1000));
 
                     const scrollContainer = document.querySelector('div[data-scroll="on"]');
                     if (!scrollContainer) throw new Error('スクロールエリアが見つかりません');
 
                     let filledCount = 0;
-                    const maxScrollAttempts = 10;
-                    
-                    for (let i = 0; i < maxScrollAttempts; i++) {
+                    for (let i = 0; i < 10; i++) {
                         const rows = document.querySelectorAll('.css-1azcrm');
                         rows.forEach(row => {
                             const label = row.querySelector('label');
                             if (!label) return;
                             const labelText = label.innerText.trim();
                             const input = row.querySelector('input');
-                            if (!input || input.value) return; // すでに入力済みならスキップ
+                            if (!input || input.value) return;
 
                             let val = null;
                             if (labelText.includes('田中式')) val = res.tanaka;
@@ -179,16 +159,12 @@
                                 input.focus();
                                 input.value = val;
                                 ['input', 'change', 'blur'].forEach(t => input.dispatchEvent(new Event(t, { bubbles: true })));
-                                console.log(`発見・入力: ${labelText} -> ${val}`);
                                 filledCount++;
                             }
                         });
-
-                        if (filledCount >= 2) break; // 両方埋まったら終了
-
-                        // 下にスクロールして次の項目を読み込ませる
+                        if (filledCount >= 2) break;
                         scrollContainer.scrollTop += 500;
-                        await new Promise(r => setTimeout(r, 300)); // 描画を待つ
+                        await new Promise(r => setTimeout(r, 400));
                     }
 
                     if (filledCount > 0) {
@@ -197,16 +173,13 @@
                             const txt = b.innerText.trim();
                             return txt === '登録' || txt === '確定' || txt === '更新';
                         });
-                        
                         if (saveBtn) {
                             saveBtn.click();
                             modal.style.display = 'none';
-                            alert('田中式・川崎式を入力し、登録しました');
+                            alert('田中式・川崎式を登録しました');
                         }
                     } else {
-                        throw new Error('スクロールしても入力項目が見つかりませんでした。');
-                    }
-                        throw new Error('入力項目（田中式/川崎式）が見つかりませんでした');
+                        throw new Error('入力項目が見つかりませんでした');
                     }
                 } catch (e) { alert(e.message); }
                 regBtn.disabled = false;
@@ -215,6 +188,5 @@
         };
     };
 
-    // 初期化（少し待ってから実行）
     setTimeout(initUI, 2000);
 })();
