@@ -1,0 +1,8 @@
+# OS temp files
+Thumbs.db
+Desktop.ini
+
+# Workspace specific
+.gemini/
+.agent/
+node_modules/

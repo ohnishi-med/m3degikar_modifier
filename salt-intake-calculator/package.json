@@ -1,0 +1,16 @@
+{
+  "name": "salt-intake-calculator",
+  "version": "1.0.0",
+  "description": "推定塩分摂取量計算プログラム (M3 Digikar Tampermonkey Script)",
+  "main": "index.js",
+  "engines": {
+    "node": "24.15.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
