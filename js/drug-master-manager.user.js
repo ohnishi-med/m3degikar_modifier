@@ -3,7 +3,7 @@
 // @match        https://*.digikar.jp/*
 // @grant        GM_xmlhttpRequest
 // @author       Tsuyoshi Ohnishi
-// @version      2.0
+// @version      2.1
 // @connect      script.google.com
 // @connect      script.googleusercontent.com
 // @updateURL    https://raw.githubusercontent.com/ohnishi-med/m3degikar_modifier/main/js/drug-master-manager.user.js
@@ -22,6 +22,7 @@
 // v1.8: セットタブで薄色ミント背景が付く薬名の脇の小さな縦線を削除。カルテパネル行左のボーダー線を正常に表示。
 // v1.9: 「酸化マグネシウム」での過剰なマッチングを解消（部分一致を廃止してメーカー名除去＆完全一致に厳密化）。
 // v2.0: 判定ロジックの抜本的改善。メーカー名保持、剤形違いの厳密判定、検索結果のテキスト結合処理を導入。
+// v2.1: デバッグログの追加とエラーハンドリングの強化。
 // ======================================================================
 
 (function () {
@@ -50,14 +51,24 @@
         return norm.replace(/(mt|bs)$/i, '');
     }
 
+    console.log("Drug Master Manager: v2.1 起動");
+
     const fetchMaster = () => {
         GM_xmlhttpRequest({
             method: "GET",
             url: GAS_URL,
             onload: function (res) {
                 try {
-                    saiyoMaster = JSON.parse(res.responseText).map(name => normalize(name));
-                } catch (e) { }
+                    const rawList = JSON.parse(res.responseText);
+                    saiyoMaster = rawList.map(name => normalize(name));
+                    console.log(`Drug Master: ${saiyoMaster.length} 件の採用薬を読み込みました。`);
+                    updateUI();
+                } catch (e) {
+                    console.error("Drug Master: マスタの解析に失敗しました。", e);
+                }
+            },
+            onerror: function (err) {
+                console.error("Drug Master: マスタの取得に失敗しました(ネットワークエラー)。", err);
             }
         });
     };
@@ -109,6 +120,10 @@
                 // 行内の全テキストを結合して判定（分割された名前と用量を一括で評価）
                 const combinedText = Array.from(nameSpans).map(s => s.innerText).join('');
                 const isMatch = isSaiyoMatch(combinedText);
+                
+                if (combinedText.includes('ムコダイン')) {
+                    console.log(`Drug Master Debug [ムコダイン]: 画面テキスト="${combinedText}", 正規化="${normalize(combinedText)}", 判定結果=${isMatch}`);
+                }
 
                 if (isMatch) {
                     row.style.backgroundColor = "#e0f2f1"; // ミントグリーン
