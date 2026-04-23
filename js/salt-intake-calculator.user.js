@@ -87,14 +87,25 @@
         document.body.appendChild(modal);
 
         trigger.onclick = async () => {
-            // 1. 「検査結果」タブを探してクリック
-            const tabs = Array.from(document.querySelectorAll('li, button'));
-            const labTab = tabs.find(el => el.innerText.trim() === '検査結果');
+            console.log('推定塩分計算: 処理開始');
             
+            // 1. 「検査結果」タブを探してクリック (部分一致で検索)
+            const allElements = Array.from(document.querySelectorAll('li, button, span, div'));
+            const labTab = allElements.find(el => 
+                el.children.length === 0 && // 子要素がない（テキストを直接持っている）要素を優先
+                el.innerText.trim().includes('検査結果')
+            )?.closest('li, button') || allElements.find(el => el.innerText.trim() === '検査結果');
+
             if (labTab) {
+                console.log('検査結果タブを発見:', labTab);
                 labTab.click();
-                // タブの切り替えとデータ表示を待つ (800ms)
-                await new Promise(r => setTimeout(r, 800));
+                // 念のため、中の要素もクリック
+                const inner = labTab.querySelector('span, div, a');
+                if (inner) inner.click();
+                
+                await new Promise(r => setTimeout(r, 1000));
+            } else {
+                console.warn('検査結果タブが見つかりませんでした');
             }
 
             const data = extractData();
