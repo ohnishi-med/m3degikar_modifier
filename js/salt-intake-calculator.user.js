@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.2.4
+// @version      1.2.5
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -13,7 +13,6 @@
 (function () {
     'use strict';
 
-    // Reactなどのフレームワークで値を確実に認識させるためのヘルパー
     function setNativeValue(element, value) {
         const { set: valueSetter } = Object.getOwnPropertyDescriptor(element, 'value') || {};
         const prototype = Object.getPrototypeOf(element);
@@ -114,13 +113,7 @@
             const res = calculate(data);
 
             if (!res) {
-                let missing = [];
-                if (!data.age) missing.push("年齢");
-                if (!data.height) missing.push("身長");
-                if (!data.weight) missing.push("体重");
-                if (!data.uNa) missing.push("尿中Na");
-                if (!data.uCr) missing.push("尿中Cr");
-                alert('データが足りません: ' + missing.join(', '));
+                alert('計算に必要なデータ（年齢・身長・体重・尿中Na/Cr）が不足しています。');
                 return;
             }
 
@@ -158,35 +151,33 @@
                     const scrollContainer = document.querySelector('div[data-scroll="on"]');
                     if (!scrollContainer) throw new Error('スクロールエリアが見つかりません');
 
-                    let filledCount = 0;
-                    for (let i = 0; i < 10; i++) {
+                    let filled = { tanaka: false, kawasaki: false };
+                    for (let i = 0; i < 15; i++) {
                         const rows = document.querySelectorAll('.css-1azcrm');
                         rows.forEach(row => {
                             const label = row.querySelector('label');
                             if (!label) return;
-                            const labelText = label.innerText.trim();
+                            const text = label.innerText;
                             const input = row.querySelector('input');
-                            if (!input || input.value) return;
+                            if (!input) return;
 
-                            let val = null;
-                            if (labelText.includes('田中式')) val = res.tanaka;
-                            else if (labelText.includes('川崎式')) val = res.kawasaki;
-
-                            if (val) {
+                            if (text.includes('田中式') && !filled.tanaka) {
                                 input.focus();
-                                setNativeValue(input, val);
-                                console.log(`発見・入力: ${labelText} -> ${val}`);
-                                filledCount++;
+                                setNativeValue(input, res.tanaka);
+                                filled.tanaka = true;
+                            } else if (text.includes('川崎式') && !filled.kawasaki) {
+                                input.focus();
+                                setNativeValue(input, res.kawasaki);
+                                filled.kawasaki = true;
                             }
                         });
-                        if (filledCount >= 2) break;
-                        scrollContainer.scrollTop += 500;
-                        await new Promise(r => setTimeout(r, 400));
+                        if (filled.tanaka && filled.kawasaki) break;
+                        scrollContainer.scrollTop += 300;
+                        await new Promise(r => setTimeout(r, 300));
                     }
 
-                    if (filledCount > 0) {
-                        // 入力を確実に確定させるための待機
-                        await new Promise(r => setTimeout(r, 500));
+                    if (filled.tanaka || filled.kawasaki) {
+                        await new Promise(r => setTimeout(r, 800)); // 反映を待つ時間を延長
                         const saveBtn = Array.from(document.querySelectorAll('button')).find(b => {
                             const txt = b.innerText.trim();
                             return txt === '登録' || txt === '確定' || txt === '更新';
@@ -194,6 +185,7 @@
                         if (saveBtn) {
                             saveBtn.click();
                             modal.style.display = 'none';
+                            console.log('登録完了（自動）');
                         }
                     } else {
                         throw new Error('入力項目が見つかりませんでした');
