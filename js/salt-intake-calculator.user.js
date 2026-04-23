@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.2.3
+// @version      1.2.4
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -12,6 +12,24 @@
 
 (function () {
     'use strict';
+
+    // Reactなどのフレームワークで値を確実に認識させるためのヘルパー
+    function setNativeValue(element, value) {
+        const { set: valueSetter } = Object.getOwnPropertyDescriptor(element, 'value') || {};
+        const prototype = Object.getPrototypeOf(element);
+        const { set: prototypeValueSetter } = Object.getOwnPropertyDescriptor(prototype, 'value') || {};
+
+        if (prototypeValueSetter && valueSetter !== prototypeValueSetter) {
+            prototypeValueSetter.call(element, value);
+        } else if (valueSetter) {
+            valueSetter.call(element, value);
+        } else {
+            element.value = value;
+        }
+        element.dispatchEvent(new Event('input', { bubbles: true }));
+        element.dispatchEvent(new Event('change', { bubbles: true }));
+        element.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
 
     function extractData() {
         const soap = document.querySelector('.ProseMirror')?.innerText || '';
@@ -156,8 +174,8 @@
 
                             if (val) {
                                 input.focus();
-                                input.value = val;
-                                ['input', 'change', 'blur'].forEach(t => input.dispatchEvent(new Event(t, { bubbles: true })));
+                                setNativeValue(input, val);
+                                console.log(`発見・入力: ${labelText} -> ${val}`);
                                 filledCount++;
                             }
                         });
@@ -167,7 +185,8 @@
                     }
 
                     if (filledCount > 0) {
-                        await new Promise(r => setTimeout(r, 300));
+                        // 入力を確実に確定させるための待機
+                        await new Promise(r => setTimeout(r, 500));
                         const saveBtn = Array.from(document.querySelectorAll('button')).find(b => {
                             const txt = b.innerText.trim();
                             return txt === '登録' || txt === '確定' || txt === '更新';
@@ -175,7 +194,6 @@
                         if (saveBtn) {
                             saveBtn.click();
                             modal.style.display = 'none';
-                            alert('田中式・川崎式を登録しました');
                         }
                     } else {
                         throw new Error('入力項目が見つかりませんでした');
