@@ -28,10 +28,23 @@ function doPost(e) {
     let rawMaster = String(data[i][0]);
     let normalizedMaster = normalize(rawMaster);
 
-    if (normalizedMaster !== "" && normalizedTarget.indexOf(normalizedMaster) !== -1) {
-      masterSheet.getRange(i + 1, 1).setValue(1);
-      return ContentService.createTextOutput(JSON.stringify({status: "success"}))
-             .setMimeType(ContentService.MimeType.JSON);
+    if (normalizedMaster !== "") {
+      // 厳密な一致判定: 完全一致、または前方一致かつ後続が数字（用量）の場合のみ
+      let isMatch = false;
+      if (normalizedTarget === normalizedMaster) {
+        isMatch = true;
+      } else if (normalizedTarget.indexOf(normalizedMaster) === 0) {
+        let remainder = normalizedTarget.substring(normalizedMaster.length);
+        if (/^\d/.test(remainder)) {
+          isMatch = true;
+        }
+      }
+
+      if (isMatch) {
+        masterSheet.getRange(i + 1, 1).setValue(1);
+        return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+               .setMimeType(ContentService.MimeType.JSON);
+      }
     }
     
     // アレジオン付近の行(13610〜13625)の情報をログ用に保持
