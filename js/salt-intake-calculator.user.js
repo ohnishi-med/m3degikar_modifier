@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.3.1
+// @version      1.3.2
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -13,7 +13,6 @@
 (function () {
     'use strict';
 
-    // icons8-塩-96.png を元にしたSVGアイコン
     const SALT_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
         <path fill="currentColor" d="M12 2c-2.21 0-4 1.79-4 4v1.5a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V6c0-2.21-1.79-4-4-4zm-1.5 2a.5.5 0 1 1 0 1 .5.5 0 0 1 0-1zm1.5 0a.5.5 0 1 1 0 1 .5.5 0 0 1 0-1zm1.5 0a.5.5 0 1 1 0 1 .5.5 0 0 1 0-1z"/>
         <path fill="currentColor" d="M8.5 9.5l-.5 10.5c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2l-.5-10.5h-7z"/>
@@ -55,7 +54,11 @@
             if (t.includes('クレアチニン－尿')) uCr = parseFloat(row.cells[row.cells.length - 1].innerText);
         });
 
-        return { age: parseInt(age), gender, height: parseFloat(height), weight: parseFloat(weight), uNa, uCr };
+        // 検査日の抽出
+        const dateCells = document.querySelectorAll('div.css-1r9zmi8 table thead th.css-1d2fxl6 button');
+        const labDate = dateCells.length > 0 ? dateCells[dateCells.length - 1].innerText.trim() : null;
+
+        return { age: parseInt(age), gender, height: parseFloat(height), weight: parseFloat(weight), uNa, uCr, labDate };
     }
 
     function calculate(d) {
@@ -72,7 +75,7 @@
         const X = (uNa_meql / (uCr_mgdl * 10)) * est_ucr_k;
         const salt_k = (16.3 * Math.sqrt(X)) / 17;
 
-        return { tanaka: salt_t.toFixed(1), kawasaki: salt_k.toFixed(1) };
+        return { tanaka: salt_t.toFixed(1), kawasaki: salt_k.toFixed(1), date: d.labDate };
     }
 
     const modal = document.createElement('div');
@@ -86,7 +89,6 @@
     document.body.appendChild(modal);
 
     async function runCalculation() {
-        console.log('推定塩分計算: 処理開始');
         const labTab = Array.from(document.querySelectorAll('li')).find(li => 
             li.innerText.trim() === '検査結果' || 
             Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果')
@@ -114,6 +116,7 @@
         modal.style.display = 'block';
         modal.innerHTML = `
             <div style="font-size: 18px; font-weight: bold; margin-bottom: 20px;">推定塩分摂取量</div>
+            <div style="font-size: 14px; color: #333; margin-bottom: 15px;">対象日: ${res.date || '不明'}</div>
             <div style="margin-bottom: 15px; background: rgba(0,0,0,0.05); padding: 10px; border-radius: 10px;">
                 <div style="font-size: 12px; color: #666;">田中式</div>
                 <div style="font-size: 24px; font-weight: bold;">${res.tanaka} <small>g/日</small></div>
@@ -141,6 +144,14 @@
                 if (!add) throw new Error('「追加（＋）」ボタンが見つかりません');
                 add.click();
                 await new Promise(r => setTimeout(r, 1000));
+
+                // 検査日のセット
+                if (res.date) {
+                    const dateInput = document.querySelector('input.css-i37t0m');
+                    if (dateInput) {
+                        setNativeValue(dateInput, res.date);
+                    }
+                }
 
                 const scrollContainer = document.querySelector('div[data-scroll="on"]');
                 if (!scrollContainer) throw new Error('スクロールエリアが見つかりません');
@@ -212,7 +223,6 @@
         button.appendChild(innerSpan);
         btnSpan.appendChild(button);
 
-        // 顕微鏡アイコン（2番目のボタン）の後ろに挿入
         const microscope = toolbar.children[1];
         if (microscope) {
             toolbar.insertBefore(btnSpan, microscope.nextSibling);
@@ -221,17 +231,14 @@
         }
 
         button.onclick = runCalculation;
-        console.log('推定塩分ボタンをツールバーにインジェクションしました');
     }
 
-    // 常駐監視：ツールバーが消えたり再描画されたら再インジェクション
     const observer = new MutationObserver(() => {
         injectButton();
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
     
-    // 初期化の遅延実行
     if (document.readyState === 'complete') {
         setTimeout(injectButton, 2000);
     } else {
