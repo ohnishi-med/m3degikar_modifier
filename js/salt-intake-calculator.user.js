@@ -10,7 +10,7 @@
 // @downloadURL  https://github.com/ohnishi-med/m3degikar_modifier/raw/main/js/salt-intake-calculator.user.js
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     /**
@@ -48,8 +48,8 @@
         const est_ucr_t = -2.04 * d.age + 14.89 * d.weight + 16.14 * d.height - 2244.45;
         const salt_t = (21.98 * Math.pow((uNa_meql / (uCr_mgdl * 10) * est_ucr_t), 0.392)) / 17;
 
-        const est_ucr_k = (d.gender === 'female') ? 
-            (8.58 * d.weight + 5.09 * d.height - 4.79 * d.age - 67.0) : 
+        const est_ucr_k = (d.gender === 'female') ?
+            (8.58 * d.weight + 5.09 * d.height - 4.79 * d.age - 67.0) :
             (15.12 * d.weight + 7.39 * d.height - 12.63 * d.age - 79.9);
         const X = (uNa_meql / (uCr_mgdl * 10)) * est_ucr_k;
         const salt_k = (16.3 * Math.sqrt(X)) / 17;
@@ -86,12 +86,28 @@
         });
         document.body.appendChild(modal);
 
-        trigger.onclick = () => {
+        trigger.onclick = async () => {
+            // 1. 「検査結果」タブを探してクリック
+            const tabs = Array.from(document.querySelectorAll('li, button'));
+            const labTab = tabs.find(el => el.innerText.trim() === '検査結果');
+            
+            if (labTab) {
+                labTab.click();
+                // タブの切り替えとデータ表示を待つ (800ms)
+                await new Promise(r => setTimeout(r, 800));
+            }
+
             const data = extractData();
             const res = calculate(data);
             
             if (!res) {
-                alert('データが足りません（身長・体重・年齢・尿中Na/Crが必要です）');
+                let missing = [];
+                if (!data.age) missing.push("年齢");
+                if (!data.height) missing.push("身長");
+                if (!data.weight) missing.push("体重");
+                if (!data.uNa) missing.push("尿中Na");
+                if (!data.uCr) missing.push("尿中Cr");
+                alert('データが足りません: ' + missing.join(', '));
                 return;
             }
 
@@ -115,17 +131,17 @@
                 const regBtn = document.getElementById('do-reg');
                 regBtn.innerText = '登録中...';
                 regBtn.disabled = true;
-                
+
                 try {
                     const add = document.querySelector('button.css-1nnxsgs');
                     if (!add) throw new Error('追加ボタンが見つかりません');
                     add.click();
                     await new Promise(r => setTimeout(r, 600));
-                    
+
                     const inputs = document.querySelectorAll('input.css-xxqb9b');
                     let target = null;
                     inputs.forEach(i => { if (i.closest('div')?.innerText.includes('塩分摂取量')) target = i; });
-                    
+
                     if (target) {
                         target.value = res.tanaka;
                         target.dispatchEvent(new Event('input', { bubbles: true }));
