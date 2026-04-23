@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.2.2
+// @version      1.2.3
 // @description  M3デジカルの検査結果から推定塩分摂取量をボタン一つで計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -76,7 +76,6 @@
         document.body.appendChild(modal);
 
         trigger.onclick = async () => {
-            console.log('推定塩分計算: 処理開始');
             const labTab = Array.from(document.querySelectorAll('li')).find(li => 
                 li.innerText.trim() === '検査結果' || 
                 Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果')
