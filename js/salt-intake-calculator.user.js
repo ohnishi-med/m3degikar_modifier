@@ -89,19 +89,25 @@
         trigger.onclick = async () => {
             console.log('推定塩分計算: 処理開始');
             
-            // 1. 「検査結果」タブを探してクリック (部分一致で検索)
-            const allElements = Array.from(document.querySelectorAll('li, button, span, div'));
-            const labTab = allElements.find(el => 
-                el.children.length === 0 && // 子要素がない（テキストを直接持っている）要素を優先
-                el.innerText.trim().includes('検査結果')
-            )?.closest('li, button') || allElements.find(el => el.innerText.trim() === '検査結果');
+            // 1. 「検査結果」タブを探してクリック
+            // タイトルではなく、タブメニュー(li)の中にある「検査結果」をピンポイントで探す
+            const labTab = Array.from(document.querySelectorAll('li')).find(li => 
+                li.innerText.trim() === '検査結果' || 
+                Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果')
+            );
 
             if (labTab) {
                 console.log('検査結果タブを発見:', labTab);
-                labTab.click();
-                // 念のため、中の要素もクリック
-                const inner = labTab.querySelector('span, div, a');
-                if (inner) inner.click();
+                
+                // 物理的なクリックに近いイベントを発生させる
+                const events = ['mousedown', 'mouseup', 'click'];
+                events.forEach(type => {
+                    const event = new MouseEvent(type, { bubbles: true, cancelable: true, view: window });
+                    labTab.dispatchEvent(event);
+                    // 中のspanにも念のため送る
+                    const span = labTab.querySelector('span');
+                    if (span) span.dispatchEvent(event);
+                });
                 
                 await new Promise(r => setTimeout(r, 1000));
             } else {
