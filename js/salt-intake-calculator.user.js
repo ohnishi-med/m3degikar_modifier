@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.4.0
+// @version      1.4.1
 // @description  M3デジカルの検査結果から推定塩分摂取量、FENa、FEUn、FECaを計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -57,7 +57,8 @@
             const t = row.cells[0].innerText.trim();
             for (let key in mapping) {
                 if (t === key) {
-                    const val = parseFloat(row.cells[row.cells.length - 1].innerText);
+                    const valText = row.cells[row.cells.length - 1].innerText;
+                    const val = parseFloat(valText.replace(/[^\d.]/g, ''));
                     if (!isNaN(val)) vals[mapping[key]] = val;
                 }
             }
@@ -70,26 +71,44 @@
     }
 
     function calculate(d) {
-        const res = { date: d.labDate, items: {} };
+        const res = { date: d.labDate, items: {}, errors: {} };
 
-        // 推定塩分
-        if (d.age && d.weight && d.height && d.uNa && d.uCr) {
+        // 推定塩分チェック
+        const saltDeps = { age: '年齢', weight: '体重', height: '身長', uNa: '尿中Na', uCr: '尿中Cr' };
+        const saltMissing = Object.keys(saltDeps).filter(k => !d[k]);
+        if (saltMissing.length === 0) {
             const uCr_mgdl = d.uCr * 100;
             const uNa_meql = (d.uNa / 23) * 1000;
             const est_ucr_t = -2.04 * d.age + 14.89 * d.weight + 16.14 * d.height - 2244.45;
             res.items.tanaka = ((21.98 * Math.pow((uNa_meql / (uCr_mgdl * 10) * est_ucr_t), 0.392)) / 17).toFixed(1);
             const est_ucr_k = (d.gender === 'female') ? (8.58 * d.weight + 5.09 * d.height - 4.79 * d.age - 67.0) : (15.12 * d.weight + 7.39 * d.height - 12.63 * d.age - 79.9);
             res.items.kawasaki = ((16.3 * Math.sqrt((uNa_meql / (uCr_mgdl * 10)) * est_ucr_k)) / 17).toFixed(1);
+        } else {
+            res.errors.salt = saltMissing.map(k => saltDeps[k]).join(', ');
         }
 
-        // FE系 (Serumデータが必要)
-        if (d.sCr && d.uCr) {
-            if (d.uNa && d.sNa) res.items.fena = ((d.uNa * d.sCr) / (d.sNa * d.uCr) * 100).toFixed(2);
-            if (d.uUN && d.sUN) res.items.feun = ((d.uUN * d.sCr) / (d.sUN * d.uCr) * 100).toFixed(1);
-            if (d.uCa && d.sCa) res.items.feca = ((d.uCa * d.sCr) / (d.sCa * d.uCr) * 100).toFixed(2);
-        }
+        // FE系
+        const feConfigs = [
+            { id: 'fena', label: 'FENa', u: 'uNa', s: 'sNa', uLab: '尿中Na', sLab: '血清Na' },
+            { id: 'feun', label: 'FEUn', u: 'uUN', s: 'sUN', uLab: '尿中UN', sLab: '血清UN' },
+            { id: 'feca', label: 'FECa', u: 'uCa', s: 'sCa', uLab: '尿中Ca', sLab: '血清Ca' }
+        ];
 
-        return Object.keys(res.items).length > 0 ? res : null;
+        feConfigs.forEach(cfg => {
+            const missing = [];
+            if (!d[cfg.u]) missing.push(cfg.uLab);
+            if (!d[cfg.s]) missing.push(cfg.sLab);
+            if (!d.uCr) missing.push('尿中Cr');
+            if (!d.sCr) missing.push('血清Cr');
+
+            if (missing.length === 0) {
+                res.items[cfg.id] = ((d[cfg.u] * d.sCr) / (d[cfg.s] * d.uCr) * 100).toFixed(cfg.id === 'feun' ? 1 : 2);
+            } else {
+                res.errors[cfg.id] = missing.join(', ');
+            }
+        });
+
+        return res;
     }
 
     const modal = document.createElement('div');
@@ -118,10 +137,16 @@
 
         const data = extractData();
         const res = calculate(data);
-        if (!res) { alert('計算に必要なデータが不足しています。'); return; }
+        const hasResult = Object.keys(res.items).length > 0;
+
+        if (!hasResult) {
+            const allMissing = Array.from(new Set(Object.values(res.errors).flatMap(s => s.split(', ')))).join(', ');
+            alert('計算に必要なデータが不足しています。\n不足: ' + allMissing);
+            return;
+        }
 
         modal.style.display = 'block';
-        let html = `<div style="font-size: 18px; font-weight: bold; margin-bottom: 10px;">計算結果</div>
+        let html = `<div style="font-size: 18px; font-weight: bold; margin-bottom: 5px;">推定塩分・FE指標</div>
                     <div style="font-size: 12px; color: #666; margin-bottom: 15px;">対象日: ${res.date || '不明'}</div>`;
         
         const rows = [
@@ -134,14 +159,20 @@
 
         rows.forEach(r => {
             if (res.items[r.id]) {
-                html += `<div style="margin-bottom: 10px; background: rgba(0,0,0,0.04); padding: 8px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center;">
-                            <span style="font-size: 12px; color: #666;">${r.label}</span>
+                html += `<div style="margin-bottom: 8px; background: rgba(39, 174, 96, 0.08); padding: 8px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid rgba(39, 174, 96, 0.2);">
+                            <span style="font-size: 12px; color: #27ae60; font-weight: bold;">${r.label}</span>
                             <span style="font-size: 18px; font-weight: bold;">${res.items[r.id]} <small style="font-size: 10px;">${r.unit}</small></span>
+                         </div>`;
+            } else {
+                const errorId = (r.id === 'tanaka' || r.id === 'kawasaki') ? 'salt' : r.id;
+                html += `<div style="margin-bottom: 8px; background: rgba(0, 0, 0, 0.03); padding: 8px; border-radius: 10px; text-align: left; opacity: 0.6;">
+                            <div style="font-size: 11px; color: #888;">${r.label} - 計算不可</div>
+                            <div style="font-size: 9px; color: #aaa;">不足: ${res.errors[errorId]}</div>
                          </div>`;
             }
         });
 
-        html += `<button id="do-reg" style="width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px;">M3に登録</button>
+        html += `<button id="do-reg" style="width: 100%; padding: 12px; background: #27ae60; color: white; border: none; border-radius: 10px; font-weight: bold; cursor: pointer; margin-top: 10px;">計算済み項目を登録</button>
                  <button id="close-modal" style="background: none; border: none; color: #666; cursor: pointer; margin-top: 10px;">閉じる</button>`;
         modal.innerHTML = html;
 
@@ -184,7 +215,7 @@
                 const saveBtn = Array.from(document.querySelectorAll('button')).find(b => ['登録','確定','更新'].includes(b.innerText.trim()));
                 if (saveBtn) { saveBtn.click(); modal.style.display = 'none'; }
             } catch (e) { alert(e.message); }
-            regBtn.disabled = false; regBtn.innerText = 'M3に登録';
+            regBtn.disabled = false; regBtn.innerText = '計算済み項目を登録';
         };
     }
 
@@ -206,6 +237,6 @@
 
     const observer = new MutationObserver(() => injectButton());
     observer.observe(document.body, { childList: true, subtree: true });
-    setInterval(injectButton, 3000); // 念のための定期実行
-    setTimeout(injectButton, 2000);
+    setInterval(injectButton, 3000);
+    setTimeout(injectButton, 1000);
 })();
