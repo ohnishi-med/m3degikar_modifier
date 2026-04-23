@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.4.1
+// @version      1.4.2
 // @description  M3デジカルの検査結果から推定塩分摂取量、FENa、FEUn、FECaを計算・登録します
 // @author       TsuyoshiOhnishi
 // @match        https://*.digikar.jp/*
@@ -47,20 +47,31 @@
         const gender = bodyText.includes('女') ? 'female' : 'male';
 
         let vals = {};
-        const mapping = {
-            'Ｎａ－尿': 'uNa', 'クレアチニン－尿': 'uCr', '尿素窒素－尿': 'uUN', 'ＵＮ－尿': 'uUN', 'Ｃａ－尿': 'uCa',
-            'Ｎａ': 'sNa', 'クレアチニン': 'sCr', '尿素窒素': 'sUN', 'ＵＮ': 'sUN', 'Ｃａ': 'sCa'
+        const getVal = (row) => {
+            const valText = row.cells[row.cells.length - 1].innerText;
+            const val = parseFloat(valText.replace(/[^\d.]/g, ''));
+            return isNaN(val) ? null : val;
         };
 
         document.querySelectorAll('tr').forEach(row => {
             if (row.cells.length < 2) return;
             const t = row.cells[0].innerText.trim();
-            for (let key in mapping) {
-                if (t === key) {
-                    const valText = row.cells[row.cells.length - 1].innerText;
-                    const val = parseFloat(valText.replace(/[^\d.]/g, ''));
-                    if (!isNaN(val)) vals[mapping[key]] = val;
-                }
+            
+            // 尿中項目を先に判定（最優先）
+            if (t.includes('Ｎａ－尿')) vals.uNa = getVal(row);
+            else if (t.includes('クレアチニン－尿')) vals.uCr = getVal(row);
+            else if (t.includes('ＵＮ－尿') || t.includes('尿素窒素－尿')) vals.uUN = getVal(row);
+            else if (t.includes('Ｃａ－尿') || t.includes('カルシウム－尿')) vals.uCa = getVal(row);
+            
+            // 血清項目（尿中と重複しないよう else if で判定）
+            else if (t.includes('Ｎａ') || t.includes('ナトリウム')) {
+                if (!vals.sNa) vals.sNa = getVal(row);
+            } else if (t.includes('クレアチニン') || t.includes('Ｃｒ')) {
+                if (!vals.sCr) vals.sCr = getVal(row);
+            } else if (t.includes('ＵＮ') || t.includes('尿素窒素')) {
+                if (!vals.sUN) vals.sUN = getVal(row);
+            } else if (t.includes('Ｃａ') || t.includes('カルシウム')) {
+                if (!vals.sCa) vals.sCa = getVal(row);
             }
         });
 
