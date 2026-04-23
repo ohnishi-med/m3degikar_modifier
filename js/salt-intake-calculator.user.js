@@ -90,7 +90,6 @@
             console.log('推定塩分計算: 処理開始');
             
             // 1. 「検査結果」タブを探してクリック
-            // タイトルではなく、タブメニュー(li)の中にある「検査結果」をピンポイントで探す
             const labTab = Array.from(document.querySelectorAll('li')).find(li => 
                 li.innerText.trim() === '検査結果' || 
                 Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果')
@@ -98,25 +97,19 @@
 
             if (labTab) {
                 console.log('検査結果タブを発見:', labTab);
-                
-                // 物理的なクリックに近いイベントを発生させる
                 const events = ['mousedown', 'mouseup', 'click'];
                 events.forEach(type => {
                     const event = new MouseEvent(type, { bubbles: true, cancelable: true, view: window });
                     labTab.dispatchEvent(event);
-                    // 中のspanにも念のため送る
                     const span = labTab.querySelector('span');
                     if (span) span.dispatchEvent(event);
                 });
-                
                 await new Promise(r => setTimeout(r, 1000));
-            } else {
-                console.warn('検査結果タブが見つかりませんでした');
             }
 
             const data = extractData();
             const res = calculate(data);
-            
+
             if (!res) {
                 let missing = [];
                 if (!data.age) missing.push("年齢");
