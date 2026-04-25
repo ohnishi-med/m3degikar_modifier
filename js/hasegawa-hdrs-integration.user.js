@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         長谷川式 (HDS-R) データ連携プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.5
+// @version      1.1.6
 // @description  スプレッドシートから長谷川式 (HDS-R) の点数を取得し、M3デジカルのカルテに自動入力します
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -154,35 +154,33 @@
     }
 
     function injectButton() {
-        if (document.getElementById('hasegawa-hdrs-btn-container')) return;
-        
-        // ツールバーの取得 (Saltボタンと同様のロジック)
         const toolbar = document.querySelector('.css-12mbokh') || Array.from(document.querySelectorAll('div')).find(d => d.className.includes('css-') && d.querySelector('path')?.getAttribute('d')?.startsWith('M4.65 4h4.905'));
         if (!toolbar) return;
 
-        const container = document.createElement('div');
-        container.id = 'hasegawa-hdrs-btn-container';
-        container.style.display = 'flex';
-        container.style.marginLeft = '4px';
+        let container = document.getElementById('hasegawa-hdrs-btn-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'hasegawa-hdrs-btn-container';
+            container.style.display = 'flex';
+            container.style.marginLeft = '4px';
 
-        const hasegawaBtn = document.createElement('span');
-        hasegawaBtn.className = 'css-lbdnvw';
-        hasegawaBtn.innerHTML = `<button class="css-1nnxsgs css-1jg2kh3" type="button" data-size="xl" data-variant="primary" title="長谷川式(HDS-R)取込"><span class="css-1f2tk15" style="color: #27ae60;">${HASEGAWA_ICON_SVG}</span></button>`;
-        hasegawaBtn.onclick = runHasegawaIntegration;
+            const hasegawaBtn = document.createElement('span');
+            hasegawaBtn.className = 'css-lbdnvw';
+            hasegawaBtn.innerHTML = `<button class="css-1nnxsgs css-1jg2kh3" type="button" data-size="xl" data-variant="primary" title="長谷川式(HDS-R)取込"><span class="css-1f2tk15">${HASEGAWA_ICON_SVG}</span></button>`;
+            hasegawaBtn.onclick = runHasegawaIntegration;
+            container.appendChild(hasegawaBtn);
+        }
 
-        container.appendChild(hasegawaBtn);
-
-        // 顕微鏡アイコンの隣、または末尾に挿入
-        const microscope = Array.from(toolbar.children).find(c => c.querySelector('path')?.getAttribute('d')?.startsWith('M17.75 20v-2.25'));
-        
-        // 既存のSaltボタンコンテナがあれば、その隣に配置したい
         const saltContainer = document.getElementById('salt-intake-btn-container');
         if (saltContainer) {
-            saltContainer.parentNode.insertBefore(container, saltContainer.nextSibling);
-        } else if (microscope) {
-            toolbar.insertBefore(container, microscope.nextSibling);
+            if (saltContainer.nextSibling !== container) {
+                saltContainer.parentNode.insertBefore(container, saltContainer.nextSibling);
+            }
         } else {
-            toolbar.appendChild(container);
+            const microscope = Array.from(toolbar.children).find(c => c.querySelector('path')?.getAttribute('d')?.startsWith('M17.75 20v-2.25'));
+            if (microscope && microscope.nextSibling !== container) {
+                toolbar.insertBefore(container, microscope.nextSibling);
+            }
         }
     }
 
