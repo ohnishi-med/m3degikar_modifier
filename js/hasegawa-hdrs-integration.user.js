@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         長谷川式 (HDS-R) データ連携プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.3
+// @version      1.1.5
 // @description  スプレッドシートから長谷川式 (HDS-R) の点数を取得し、M3デジカルのカルテに自動入力します
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
