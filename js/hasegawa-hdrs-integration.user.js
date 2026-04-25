@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         長谷川式 (HDS-R) データ連携プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.0
+// @version      1.1.1
 // @description  スプレッドシートから長谷川式 (HDS-R) の点数を取得し、M3デジカルのカルテに自動入力します
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -107,7 +107,7 @@
                             regBtn.innerText = '登録中...'; regBtn.disabled = true;
                             try {
                                 const labTab = Array.from(document.querySelectorAll('li')).find(li => li.innerText.trim() === '検査結果' || Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果'));
-                                if (labTab) { ['mousedown', 'mouseup', 'click'].forEach(t => { const e = new MouseEvent(t, { bubbles: true, cancelable: true, view: window }); labTab.dispatchEvent(e); labTab.querySelector('span')?.dispatchEvent(e); }); await new Promise(r => setTimeout(r, 800)); }
+                                if (labTab) { ['mousedown', 'mouseup', 'click'].forEach(t => { const e = new MouseEvent(t, { bubbles: true, cancelable: true, view: document.defaultView }); labTab.dispatchEvent(e); labTab.querySelector('span')?.dispatchEvent(e); }); await new Promise(r => setTimeout(r, 800)); }
 
                                 const add = Array.from(document.querySelectorAll('button.css-1nnxsgs')).find(b => b.querySelector('path')?.getAttribute('d') === 'M13 11h9v2h-9v9h-2v-9H2v-2h9V2h2z');
                                 if (!add) throw new Error('「追加（＋）」ボタンが見つかりません');
