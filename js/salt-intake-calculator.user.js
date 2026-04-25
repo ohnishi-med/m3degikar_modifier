@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.4.4
-// @description  M3デジカルの検査結果から推定塩分摂取量、FENa、FEUn、FECaを計算・登録します
-// @author       TsuyoshiOhnishi
+// @version      1.5.0
+// @description  M3デジカルから推定塩分摂取量、およびFENa/FEUn/FECaの計算を行います
+// @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // @updateURL    https://github.com/ohnishi-med/m3degikar_modifier/raw/main/js/salt-intake-calculator.user.js
 // @downloadURL  https://github.com/ohnishi-med/m3degikar_modifier/raw/main/js/salt-intake-calculator.user.js
 // ==/UserScript==
@@ -19,6 +19,8 @@
         <path fill="white" d="M11.5 13.5c0-.28.22-.5.5-.5h.5c.28 0 .5.22.5.5v.5c0 .28-.22.5-.5.5h-.5c-.28 0-.5.22-.5.5v.5c0 .28.22.5.5.5h1.5v1h-1.5c-.83 0-1.5-.67-1.5-1.5v-.5c0-.28.22-.5.5-.5h.5c.28 0 .5-.22.5-.5v-.5c0-.28-.22-.5-.5-.5h-.5c-.28 0-.5-.22-.5-.5v-.5z"/>
     </svg>`;
 
+
+
     function setNativeValue(element, value) {
         if (value === undefined || value === null) return;
         const { set: valueSetter } = Object.getOwnPropertyDescriptor(element, 'value') || {};
@@ -30,6 +32,19 @@
         element.dispatchEvent(new Event('input', { bubbles: true }));
         element.dispatchEvent(new Event('change', { bubbles: true }));
         element.dispatchEvent(new Event('blur', { bubbles: true }));
+    }
+
+    function extractPatientInfo() {
+        const header = document.querySelector('.css-ustlin');
+        if (!header) return null;
+        const spans = header.querySelectorAll(':scope > span');
+        const ruby = header.querySelector('ruby');
+        return {
+            id: spans[0]?.innerText.trim(),
+            name: ruby ? Array.from(ruby.childNodes).filter(node => node.nodeType === 3).map(node => node.textContent).join('').trim() : null,
+            age: spans[1]?.innerText.trim(),
+            gender: header.querySelector('.css-o1cux7 span')?.innerText.trim()
+        };
     }
 
     function extractData() {
@@ -133,17 +148,28 @@
         };
     }
 
+
     function injectButton() {
-        if (document.getElementById('salt-intake-btn')) return;
+        if (document.getElementById('salt-intake-btn-container')) return;
         const toolbar = document.querySelector('.css-12mbokh') || Array.from(document.querySelectorAll('div')).find(d => d.className.includes('css-') && d.querySelector('path')?.getAttribute('d')?.startsWith('M4.65 4h4.905'));
         if (!toolbar) return;
-        const btnSpan = document.createElement('span');
-        btnSpan.id = 'salt-intake-btn'; btnSpan.className = 'css-lbdnvw';
-        btnSpan.innerHTML = `<button class="css-1nnxsgs css-1jg2kh3" type="button" data-size="xl" data-variant="primary" title="推定塩分・FE計算"><span class="css-1f2tk15">${SALT_ICON_SVG}</span></button>`;
+
+        const container = document.createElement('div');
+        container.id = 'salt-intake-btn-container';
+        container.style.display = 'flex';
+        container.style.gap = '4px';
+
+        const saltBtn = document.createElement('span');
+        saltBtn.className = 'css-lbdnvw';
+        saltBtn.innerHTML = `<button class="css-1nnxsgs css-1jg2kh3" type="button" data-size="xl" data-variant="primary" title="推定塩分・FE計算"><span class="css-1f2tk15">${SALT_ICON_SVG}</span></button>`;
+        saltBtn.onclick = runCalculation;
+
+        container.appendChild(saltBtn);
+
         const microscope = Array.from(toolbar.children).find(c => c.querySelector('path')?.getAttribute('d')?.startsWith('M17.75 20v-2.25'));
-        if (microscope) toolbar.insertBefore(btnSpan, microscope.nextSibling); else toolbar.appendChild(btnSpan);
-        btnSpan.onclick = runCalculation;
+        if (microscope) toolbar.insertBefore(container, microscope.nextSibling); else toolbar.appendChild(container);
     }
+
     const observer = new MutationObserver(() => injectButton());
     observer.observe(document.body, { childList: true, subtree: true });
     setInterval(injectButton, 3000);
