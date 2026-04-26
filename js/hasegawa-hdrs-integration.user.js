@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         長谷川式 (HDS-R) データ連携プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.6
+// @version      1.1.7
 // @description  スプレッドシートから長谷川式 (HDS-R) の点数を取得し、M3デジカルのカルテに自動入力します
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -113,19 +113,30 @@
                                 if (!add) throw new Error('「追加（＋）」ボタンが見つかりません');
                                 add.click(); await new Promise(r => setTimeout(r, 1000));
                                 
+                                if (res.date) { const dateInput = document.querySelector('input.css-i37t0m'); if (dateInput) setNativeValue(dateInput, res.date); }
+                                
                                 const scrollContainer = document.querySelector('div[data-scroll="on"]');
-                                let status = { score: false, date: false };
+                                let statusScore = false;
                                 for (let i = 0; i < 20; i++) {
                                     document.querySelectorAll('.css-1azcrm').forEach(row => {
                                         const label = row.querySelector('label')?.innerText || '';
                                         const input = row.querySelector('input');
                                         if (!input) return;
-                                        if ((label.includes('長谷川') || label.includes('HDS-R')) && !status.score) { setNativeValue(input, res.score); status.score = true; }
-                                        if (label.includes('検査年月日') && !status.date && res.date) { setNativeValue(input, res.date); status.date = true; }
+                                        if ((label.includes('長谷川') || label.includes('HDS-R')) && !statusScore) { input.focus(); setNativeValue(input, res.score); statusScore = true; }
+                                        if (label.includes('検査年月日') && res.date) { setNativeValue(input, res.date); }
                                     });
-                                    if (status.score && (status.date || !res.date)) break;
-                                    if (scrollContainer) { scrollContainer.scrollTop += 300; await new Promise(r => setTimeout(r, 300)); }
+                                    if (statusScore) break;
+                                    
+                                    if (scrollContainer) { 
+                                        let prevScroll = scrollContainer.scrollTop;
+                                        scrollContainer.scrollTop += 300; 
+                                        if (scrollContainer.scrollTop === prevScroll) break;
+                                        await new Promise(r => setTimeout(r, 300)); 
+                                    } else {
+                                        break;
+                                    }
                                 }
+                                await new Promise(r => setTimeout(r, 500));
                                 
                                 const saveBtn = Array.from(document.querySelectorAll('button')).find(b => ['登録','確定','更新'].includes(b.innerText.trim()));
                                 if (saveBtn) saveBtn.click();
