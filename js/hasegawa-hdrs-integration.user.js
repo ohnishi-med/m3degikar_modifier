@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         長谷川式 (HDS-R) データ連携プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.1.7
+// @version      1.1.8
 // @description  スプレッドシートから長谷川式 (HDS-R) の点数を取得し、M3デジカルのカルテに自動入力します
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -123,7 +123,7 @@
                                         const input = row.querySelector('input');
                                         if (!input) return;
                                         if ((label.includes('長谷川') || label.includes('HDS-R')) && !statusScore) { input.focus(); setNativeValue(input, res.score); statusScore = true; }
-                                        if (label.includes('検査年月日') && res.date) { setNativeValue(input, res.date); }
+                                        if (label.includes('検査日') && res.date) { setNativeValue(input, res.date); }
                                     });
                                     if (statusScore) break;
                                     
