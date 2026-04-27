@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.5.0
+// @version      1.5.1
 // @description  M3デジカルから推定塩分摂取量、およびFENa/FEUn/FECaの計算を行います
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -18,8 +18,6 @@
         <path fill="currentColor" d="M8.5 9.5l-.5 10.5c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2l-.5-10.5h-7z"/>
         <path fill="white" d="M11.5 13.5c0-.28.22-.5.5-.5h.5c.28 0 .5.22.5.5v.5c0 .28-.22.5-.5.5h-.5c-.28 0-.5.22-.5.5v.5c0 .28.22.5.5.5h1.5v1h-1.5c-.83 0-1.5-.67-1.5-1.5v-.5c0-.28.22-.5.5-.5h.5c.28 0 .5-.22.5-.5v-.5c0-.28-.22-.5-.5-.5h-.5c-.28 0-.5-.22-.5-.5v-.5z"/>
     </svg>`;
-
-
 
     function setNativeValue(element, value) {
         if (value === undefined || value === null) return;
@@ -148,21 +146,25 @@
         };
     }
 
-
     function injectButton() {
         if (document.getElementById('salt-intake-btn-container')) return;
         const toolbar = document.querySelector('.css-12mbokh') || Array.from(document.querySelectorAll('div')).find(d => d.className.includes('css-') && d.querySelector('path')?.getAttribute('d')?.startsWith('M4.65 4h4.905'));
         if (!toolbar) return;
 
-        const container = document.createElement('div');
+        const container = document.createElement('span');
         container.id = 'salt-intake-btn-container';
-        container.style.display = 'flex';
+        container.style.display = 'inline-flex';
         container.style.gap = '4px';
 
         const saltBtn = document.createElement('span');
         saltBtn.className = 'css-lbdnvw';
-        saltBtn.innerHTML = `<button class="css-1nnxsgs css-1jg2kh3" type="button" data-size="xl" data-variant="primary" title="推定塩分・FE計算"><span class="css-1f2tk15">${SALT_ICON_SVG}</span></button>`;
-        saltBtn.onclick = runCalculation;
+        saltBtn.innerHTML = `<button class="css-1nnxsgs css-1jg2kh3" type="button" data-size="xl" data-variant="primary" title="推定塩分・FE計算" style="pointer-events: auto;"><span class="css-1f2tk15">${SALT_ICON_SVG}</span></button>`;
+        
+        saltBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            runCalculation();
+        }, true);
 
         container.appendChild(saltBtn);
 
