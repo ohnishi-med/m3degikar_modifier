@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.5.1
+// @version      1.5.2
 // @description  M3デジカルから推定塩分摂取量、およびFENa/FEUn/FECaの計算を行います
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -103,7 +103,7 @@
 
     async function runCalculation() {
         const labTab = Array.from(document.querySelectorAll('li')).find(li => li.innerText.trim() === '検査結果' || Array.from(li.querySelectorAll('span')).some(s => s.innerText.trim() === '検査結果'));
-        if (labTab) { ['mousedown', 'mouseup', 'click'].forEach(t => { const e = new MouseEvent(t, { bubbles: true, cancelable: true, view: window }); labTab.dispatchEvent(e); labTab.querySelector('span')?.dispatchEvent(e); }); await new Promise(r => setTimeout(r, 1000)); }
+        if (labTab) { ['mousedown', 'mouseup', 'click'].forEach(t => { const e = new MouseEvent(t, { bubbles: true, cancelable: true, view: document.defaultView }); labTab.dispatchEvent(e); labTab.querySelector('span')?.dispatchEvent(e); }); await new Promise(r => setTimeout(r, 1000)); }
         const data = extractData();
         const res = calculate(data);
         const hasResult = Object.keys(res.items).length > 0;
