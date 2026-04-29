@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         推定塩分摂取量計算プログラム
 // @namespace    http://tampermonkey.net/
-// @version      1.5.2
+// @version      1.6.0
 // @description  M3デジカルから推定塩分摂取量、およびFENa/FEUn/FECaの計算を行います
 // @author       TsuyoshiOhnishi / Antigravity
 // @match        https://*.digikar.jp/*
@@ -46,10 +46,64 @@
     }
 
     function extractData() {
-        const soap = document.querySelector('.ProseMirror')?.innerText || '';
-        const height = (soap.match(/【身長】\s*(\d+(\.\d+)?)cm/) || [])[1];
-        const weightMatches = [...soap.matchAll(/(\d+\/\d+)\s*(\d+(\.\d+)?)kg/g)];
-        const weight = weightMatches.length > 0 ? weightMatches[weightMatches.length - 1][2] : null;
+        let soap = document.querySelector('.ProseMirror')?.innerText || '';
+        // 全角英数字・全角スペースを半角に変換、特殊文字を標準化し小文字に統一
+        soap = soap.replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
+                   .replace(/　/g, ' ')
+                   .replace(/㎏/g, 'kg')
+                   .replace(/㎝/g, 'cm')
+                   .toLowerCase();
+
+        // 身長の抽出（「身長」等のキーワード不要、130〜220cmの常識的範囲で判定）
+        const heightRegex = /(\d+(\.\d+)?)\s*cm/g;
+        let heightMatches = [];
+        let hMatch;
+        while ((hMatch = heightRegex.exec(soap)) !== null) {
+            const hVal = parseFloat(hMatch[1]);
+            if (hVal >= 130 && hVal <= 220) {
+                heightMatches.push(hMatch[1]);
+            }
+        }
+        // 複数見つかった場合はカルテのより下にある記述を最新とみなす
+        const height = heightMatches.length > 0 ? heightMatches[heightMatches.length - 1] : null;
+
+        // 体重の抽出（「体重」等のキーワード不要、行ごとに解析して日付と体重をペアにする）
+        let weightList = [];
+        soap.split('\n').forEach((line, index) => {
+            const weightMatch = line.match(/(\d+(\.\d+)?)\s*(?:kg|キロ)/);
+            if (weightMatch) {
+                const wVal = parseFloat(weightMatch[1]);
+                // 25〜200kgの常識的範囲で判定
+                if (wVal >= 25 && wVal <= 200) {
+                    const dateMatch = line.match(/(?:(\d{4})[/年])?(\d{1,2})[/月](\d{1,2})日?/);
+                    let dateObj = null;
+                    if (dateMatch) {
+                        let y = dateMatch[1] ? parseInt(dateMatch[1]) : new Date().getFullYear();
+                        const m = parseInt(dateMatch[2], 10);
+                        const d = parseInt(dateMatch[3], 10);
+                        dateObj = new Date(y, m - 1, d);
+                        // 年指定がなく、未来の日付（1ヶ月以上先）になる場合は前年とみなす
+                        if (!dateMatch[1] && dateObj > new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) {
+                            dateObj = new Date(y - 1, m - 1, d);
+                        }
+                    }
+                    weightList.push({ val: weightMatch[1], date: dateObj, index });
+                }
+            }
+        });
+
+        // 日付がある場合は直近の日付を採用。日付がない場合は一番下の記載を採用
+        let weight = null;
+        if (weightList.length > 0) {
+            const withDates = weightList.filter(w => w.date !== null);
+            if (withDates.length > 0) {
+                withDates.sort((a, b) => b.date.getTime() - a.date.getTime() || b.index - a.index);
+                weight = withDates[0].val;
+            } else {
+                weight = weightList[weightList.length - 1].val;
+            }
+        }
+
         const bodyText = document.body.innerText.substring(0, 10000);
         const age = (bodyText.match(/(\d+)歳/) || [])[1];
         const gender = bodyText.includes('女') ? 'female' : 'male';
