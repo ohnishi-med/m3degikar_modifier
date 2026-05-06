@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.2//2026.4.9v
+// @version 4.3.5
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -12,8 +12,8 @@
 
 // ======================================================================
 // 【更新履歴】
-// v4.3.2: Git運用と自動配信対応(英字ファイル名リネーム・最適化初版)
-//         10台以上のPCへの配信最適化のため、メタデータにアップデートURLを付与。
+// v4.3.4: バージョン形式の標準化。
+// v4.3.3: 18歳判定の厳密化(年度末考慮)と「会計済」除外。坂口医師の固定色追加。
 // ======================================================================
 
 (function () {
@@ -25,7 +25,8 @@
     const FIXED_DOCTORS = {
         // "医師名 (完全一致)": { background: "背景色 (CSSコード)", color: "文字色 (CSSコード)" }
         "大西　剛史": { background: "#F0F8FF", color: "black" },      // アリスブルー (非常に淡い青)
-        "伊東　雅記": { background: "#F0FFF0", color: "black" }      // アイボリーグリーン (非常に淡い緑)
+        "伊東　雅記": { background: "#F0FFF0", color: "black" },      // アイボリーグリーン (非常に淡い緑)
+        "坂口　祐希": { background: "#FFF0F5", color: "black" }       // ラベンダーブラッシュ (非常に淡いピンク)
     };
 
     // ======================================================================
@@ -53,32 +54,73 @@
     const TABLE_SELECTOR = 'table.css-10z6nof';
     const RECEPTION_URL_PREFIX = 'https://digikar.jp/reception/';
 
-    // テーブル内のセルのインデックス定義（0からカウント）
-    const FIRST_CELL_INDEX = 0;       // 1列目 (受付番号)
-    const AGE_CELL_INDEX = 7;         // 8列目 (年齢)
-    const INSURANCE_CELL_INDEX = 8;   // 9列目 (保険)
-    const DEPT_CELL_INDEX = 9;        // 10列目 (診療科)
-    const DOCTOR_CELL_INDEX = 10;     // 11列目 (医師名)
-    const MEMO_CELL_INDEX = 13;       // 14列目 (受付メモ)
-
-    // 全行のセル数 (14列目まで)
-    const TOTAL_CELLS_COUNT = MEMO_CELL_INDEX + 1;
-
+    // 動的に取得されるカラムインデックス（初期値は一般的な配置）
+    let columnIndices = {
+        status: 3,
+        birthday: -1, // デフォルトでは未発見
+        age: 6,
+        insurance: 7,
+        dept: 8,
+        doctor: 9,
+        memo: 12
+    };
 
     let colorMap = {};
     let toastTimeout; // トーストタイマーのIDを保持
     let toastDelayTimer = null; // エラー予約タイマーのIDを保持
+    let hasShownBirthdayWarning = false; // 生年月日警告の表示済みフラグ
 
     let observer; // テーブルの変更を監視するObserver
     let isObserverInitialized = false; // Observerが初期化されたかを示すフラグ
+
+    // --- カラム位置の自動検出 ---
+
+    /**
+     * テーブルヘッダーを走査して、必要な情報のカラムインデックスを特定します。
+     */
+    function updateColumnIndices() {
+        const table = document.querySelector(TABLE_SELECTOR);
+        if (!table) return;
+        const headerCells = table.querySelectorAll('thead th');
+        if (headerCells.length === 0) return;
+
+        // 見つかったものだけ更新（見つからない場合は -1）
+        const newIndices = { status: -1, birthday: -1, age: -1, insurance: -1, dept: -1, doctor: -1, memo: -1 };
+
+        headerCells.forEach((cell, index) => {
+            const text = cell.innerText.trim();
+            if (text.includes("ステータス")) newIndices.status = index;
+            else if (text.includes("生年月日")) newIndices.birthday = index;
+            else if (text.includes("年齢")) newIndices.age = index;
+            else if (text.includes("保険")) newIndices.insurance = index;
+            else if (text.includes("診療科")) newIndices.dept = index;
+            else if (text.includes("医師")) newIndices.doctor = index;
+            else if (text.includes("受付メモ")) newIndices.memo = index;
+        });
+
+        // 重要なカラムが一つも見つからない場合は、デフォルト値を維持（または前回の値を維持）
+        if (newIndices.status !== -1 || newIndices.doctor !== -1) {
+            columnIndices = newIndices;
+        }
+
+        // 生年月日が非表示の場合、一度だけ通知を出す
+        if (columnIndices.birthday === -1 && !hasShownBirthdayWarning) {
+            showToast("「生年月日」カラムが非表示です。18歳の精密判定（年度末チェック）を行うには、右上のフィルターアイコンから「生年月日」を表示してください。現在は「年齢」で代用しています。", 8000, "info");
+            hasShownBirthdayWarning = true;
+        } else if (columnIndices.birthday !== -1) {
+            hasShownBirthdayWarning = true; // 表示されているなら今後も出さない
+        }
+    }
 
     // --- トースト通知機能 ---
 
     /**
      * 画面下部にトースト通知を表示します。
      * @param {string} message - 表示するメッセージ
+     * @param {number} duration - 表示時間(ms)
+     * @param {string} type - 'error' または 'info'
      */
-    function showToast(message) {
+    function showToast(message, duration = 3000, type = "error") {
         // 既存のトーストがあれば削除し、タイマーをリセット
         const existingToast = document.getElementById('digikar-colorizer-toast');
         if (existingToast) {
@@ -88,31 +130,32 @@
 
         const toast = document.createElement('div');
         toast.id = 'digikar-colorizer-toast';
-        toast.textContent = `[Colorizerエラー] ${message}`;
+        toast.textContent = type === "error" ? `[Colorizerエラー] ${message}` : `[Colorizer] ${message}`;
 
         // CSSスタイルを適用
         Object.assign(toast.style, {
             position: 'fixed',
             bottom: '20px',
             right: '20px',
-            backgroundColor: 'rgba(255, 60, 60, 0.9)', // 赤系の警告色
+            backgroundColor: type === "error" ? 'rgba(255, 60, 60, 0.9)' : 'rgba(50, 50, 50, 0.85)', // エラーは赤、通知は黒
             color: 'white',
             padding: '12px 20px',
-            borderRadius: '5px',
-            fontSize: '14px',
+            borderRadius: '8px',
+            fontSize: '13px',
             zIndex: '99999',
             transition: 'opacity 0.5s ease-in-out',
             opacity: '1',
-            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
+            boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
+            pointerEvents: 'none'
         });
 
         document.body.appendChild(toast);
 
-        // 5秒後にフェードアウトして削除
+        // 数秒後に消去
         toastTimeout = setTimeout(() => {
             toast.style.opacity = '0';
-            setTimeout(() => toast.remove(), 500); // フェードアウト後にDOMから削除
-        }, 5000);
+            setTimeout(() => toast.remove(), 500);
+        }, duration);
     }
 
     // --- 処理ロジック関数群 ---
@@ -206,6 +249,9 @@
             toastDelayTimer = null; // タイマー実行後はクリア
         }, 500);
 
+        // カラム位置を最新化
+        updateColumnIndices();
+
         // 医師名の色付けマップを再構築
         const uniqueDoctors = collectUniqueDoctorNames();
         colorMap = buildColorMap(uniqueDoctors);
@@ -225,20 +271,26 @@
         rows.forEach(row => {
             const allTargetCells = row.querySelectorAll(`td`);
 
-            // 受付メモ (14列目/インデックス13) まで存在するかチェック
-            if (allTargetCells.length < TOTAL_CELLS_COUNT) return;
+            // 最低限ステータスが見れる程度の列数があるかチェック
+            if (allTargetCells.length < 4) return;
 
             // 正常に処理できる行としてカウント
             rowsProcessedCount++;
 
-            // 必須セルを取得
-            const ageCell = allTargetCells[AGE_CELL_INDEX];
-            const doctorCell = allTargetCells[DOCTOR_CELL_INDEX];
-            const deptCell = allTargetCells[DEPT_CELL_INDEX];
-            const insuranceCell = allTargetCells[INSURANCE_CELL_INDEX];
-            const memoCell = allTargetCells[MEMO_CELL_INDEX];
+            // ヘルパー: セルを安全に取得
+            const getCell = (idx) => (idx !== -1 && idx < allTargetCells.length) ? allTargetCells[idx] : null;
 
-            // 情報を取得する際には、input/selectの値を優先的に読むように変更
+            // 各セルの取得
+            const statusCell = getCell(columnIndices.status);
+            const birthdayCell = getCell(columnIndices.birthday);
+            const ageCell = getCell(columnIndices.age);
+            const doctorCell = getCell(columnIndices.doctor);
+            const deptCell = getCell(columnIndices.dept);
+            const insuranceCell = getCell(columnIndices.insurance);
+            const memoCell = getCell(columnIndices.memo);
+
+            // テキストの抽出
+            const statusText = extractCellText(statusCell);
             const ageText = extractCellText(ageCell);
             const deptText = extractCellText(deptCell);
             const memoText = extractCellText(memoCell);
@@ -256,9 +308,15 @@
                 allTargetCells[i].style.removeProperty('color');
             }
 
+            // ======================================================================
+            // 2. 「会計済」ならここで終了
+            // ======================================================================
+            if (statusText.includes("会計済")) {
+                return;
+            }
 
             // ======================================================================
-            // 2. 行全体のベース色付け (オンライン・発熱外来)
+            // 3. 行全体のベース色付け (オンライン・発熱外来)
             // ======================================================================
             const isOnlineMemo = memoText.includes("オンライン");
             const isFeverClinic = memoText.includes("発熱外来");
@@ -268,7 +326,7 @@
             if (isFeverClinic) rowStyle = FEVER_CLINIC_STYLE; // 発熱外来を優先（必要に応じて順序を入れ替えてください）
 
             if (rowStyle) {
-                for (let i = 0; i < TOTAL_CELLS_COUNT; i++) {
+                for (let i = 0; i < allTargetCells.length; i++) {
                     const cell = allTargetCells[i];
                     cell.style.setProperty('background-color', rowStyle.background);
                     cell.style.setProperty('color', rowStyle.color);
@@ -315,10 +373,32 @@
             const hasPublicExpense = /(こども|子|ひとり|生活保護|親|障害)/.test(insuranceText);
 
             // 【修正】18歳の年度末までを対象とする判定
-            // 18歳以下、かつ「自由診療」ではない場合に、公費入力があるかチェック
+            // 1. 生年月日文字列から西暦年・月・日を抽出 (例: "2007(H19)/07/17" -> 2007, 7, 17)
+            const bdayMatch = extractCellText(birthdayCell).match(/^(\d{4}).*\/(\d{2})\/(\d{2})/);
+            let isPastFiscalYearEnd = false;
+
+            if (bdayMatch) {
+                const bYear = parseInt(bdayMatch[1], 10);
+                const bMonth = parseInt(bdayMatch[2], 10);
+                const bDay = parseInt(bdayMatch[3], 10);
+
+                // 高校卒業年度の末日（18歳になる年度の3/31）を計算
+                // 日本の学制では、4/2生まれ以降はその年の+19年、4/1生まれ以前は+18年の3/31
+                const gradYear = (bMonth > 4 || (bMonth === 4 && bDay >= 2)) ? bYear + 19 : bYear + 18;
+                const gradDate = new Date(gradYear, 2, 31); // 2=3月
+
+                if (today > gradDate) {
+                    isPastFiscalYearEnd = true;
+                }
+            } else {
+                // 生年月日が取れない場合は年齢のみで簡易判定（安全のため19歳以上を対象外とする）
+                if (age >= 19) isPastFiscalYearEnd = true;
+            }
+
+            // 18歳年度末（または19歳以上）、かつ「自由診療」ではない場合に、公費入力があるかチェック
             const isMinorWithoutChildInsuranceWarning =
                 !deptText.includes("自由診療") &&
-                age <= 18 &&
+                !isPastFiscalYearEnd &&
                 !hasPublicExpense;
 
             // 9列目に色を付ける必要があるかどうかの判定
