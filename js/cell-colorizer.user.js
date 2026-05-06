@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.6
+// @version 4.3.7
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -347,14 +347,14 @@
             // --- 10th Column (Dept) Logic --- (最優先警告)
             const isDeptWarningNeeded = isMinorInAdultDeptWarning || isAdultInPediatricsWarning;
 
-            if (isDeptWarningNeeded) {
+            if (isDeptWarningNeeded && deptCell) {
                 // 10列目（診療科）に警告色を適用 (オンラインの色を上書き)
                 deptCell.style.setProperty('background-color', WARNING_STYLE.background);
                 deptCell.style.setProperty('color', WARNING_STYLE.color);
             }
 
             // --- 8th Column (Age) Logic ---
-            if (isMinorInAdultDeptWarning) {
+            if (isMinorInAdultDeptWarning && ageCell) {
                 // 8列目（年齢）に警告色を適用 (オンラインの色を上書き)
                 ageCell.style.setProperty('background-color', WARNING_STYLE.background);
                 ageCell.style.setProperty('color', WARNING_STYLE.color);
@@ -407,7 +407,7 @@
                 (insuranceText !== "保険無し" && deptText.includes("自由診療")) ||  // 自費保険入力　検知
                 isMinorWithoutChildInsuranceWarning;
 
-            if (isInsuranceCellStyleNeeded) {
+            if (isInsuranceCellStyleNeeded && insuranceCell) {
                 let backgroundStyle = NO_INSURANCE_STYLE.background;
                 let colorStyle = NO_INSURANCE_STYLE.color;
 
@@ -430,7 +430,7 @@
             const doctorName = extractCellText(doctorCell);
             const style = colorMap[doctorName];
 
-            if (style) {
+            if (style && doctorCell) {
                 // 11列目（医師名）に色を適用 (オンラインや警告色、またはデフォルト色を上書き)
                 doctorCell.style.setProperty('background-color', style.background);
                 doctorCell.style.setProperty('color', style.color);
