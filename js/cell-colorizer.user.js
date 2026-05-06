@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.5
+// @version 4.3.6
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -25,8 +25,8 @@
     const FIXED_DOCTORS = {
         // "医師名 (完全一致)": { background: "背景色 (CSSコード)", color: "文字色 (CSSコード)" }
         "大西　剛史": { background: "#F0F8FF", color: "black" },      // アリスブルー (非常に淡い青)
-        "伊東　雅記": { background: "#F0FFF0", color: "black" },      // アイボリーグリーン (非常に淡い緑)
-        "坂口　祐希": { background: "#FFF0F5", color: "black" }       // ラベンダーブラッシュ (非常に淡いピンク)
+        "坂口　祐希": { background: "#FFF0F5", color: "black" },      // ラベンダーブラッシュ (非常に淡いピンク)
+        "久保　英二": { background: "#F0FFF0", color: "black" }       // アイボリーグリーン (非常に淡い緑)
     };
 
     // ======================================================================
