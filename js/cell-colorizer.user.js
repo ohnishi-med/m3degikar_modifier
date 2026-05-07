@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.12
+// @version 4.3.13
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
