@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.11
+// @version 4.3.12
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -105,7 +105,7 @@
 
         // 生年月日が非表示の場合、一度だけ通知を出す
         if (columnIndices.birthday === -1 && !hasShownBirthdayWarning) {
-            showToast("「生年月日」カラムが非表示です。18歳の精密判定（年度末チェック）を行うには、右上のフィルターアイコンから「生年月日」を表示してください。現在は「年齢」で代用しています。", 8000, "info");
+            showToast("「生年月日」カラムが非表示です。18歳の精密判定（年度末チェック）を行うには、左上のフィルターアイコンから「生年月日」を表示してください。現在は「年齢」で代用しています。", 8000, "info");
             hasShownBirthdayWarning = true;
         } else if (columnIndices.birthday !== -1) {
             hasShownBirthdayWarning = true; // 表示されているなら今後も出さない
