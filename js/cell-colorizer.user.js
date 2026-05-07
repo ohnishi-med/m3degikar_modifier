@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.10
+// @version 4.3.11
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -393,10 +393,12 @@
             }
 
             // 18歳年度末（または19歳以上）、かつ「自由診療」ではない場合に、公費入力があるかチェック
+            // ただし、受付メモに「県外」とある場合は県外在住で子供医療費が使えないため除外する
             const isMinorWithoutChildInsuranceWarning =
                 !deptText.includes("自由診療") &&
                 !isPastFiscalYearEnd &&
-                !hasPublicExpense;
+                !hasPublicExpense &&
+                !memoText.includes("県外");
 
             // 9列目に色を付ける必要があるかどうかの判定
             const isInsuranceCellStyleNeeded =
