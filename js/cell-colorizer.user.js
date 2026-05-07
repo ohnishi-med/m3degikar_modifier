@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name 受付セル塗り分け
 // @namespace http://tampermonkey.net/
-// @version 4.3.7
+// @version 4.3.9
 // @description 発熱外来対応　川口子ども、一人親 医療費対応。
 // @author Tsuyoshi Ohnishi
 // @match https://digikar.jp/*
@@ -213,7 +213,7 @@
         rows.forEach(row => {
             const allTargetCells = row.querySelectorAll(`td`);
 
-            const doctorCell = allTargetCells[DOCTOR_CELL_INDEX];
+            const doctorCell = (columnIndices.doctor !== -1 && columnIndices.doctor < allTargetCells.length) ? allTargetCells[columnIndices.doctor] : null;
             const doctorName = extractCellText(doctorCell);
             if (doctorName) {
                 uniqueDoctors.add(doctorName);
@@ -463,14 +463,17 @@
         // ... (変更なし)
         const elementsToWatch = [];
 
+        const cells = row.querySelectorAll('td');
+        const getCell = (idx) => (idx !== -1 && idx < cells.length) ? cells[idx] : null;
+
         // 8列目 (年齢) - 通常のテキスト入力 or テキスト表示
-        const ageCell = row.querySelectorAll('td')[AGE_CELL_INDEX];
+        const ageCell = getCell(columnIndices.age);
         // 9列目 (保険) - テキスト入力 or テキスト表示
-        const insuranceCell = row.querySelectorAll('td')[INSURANCE_CELL_INDEX];
+        const insuranceCell = getCell(columnIndices.insurance);
         // 10列目 (診療科) - ドロップダウン (select)
-        const deptCell = row.querySelectorAll('td')[DEPT_CELL_INDEX];
+        const deptCell = getCell(columnIndices.dept);
         // 14列目 (受付メモ) - テキストエリア (textarea)
-        const memoCell = row.querySelectorAll('td')[MEMO_CELL_INDEX];
+        const memoCell = getCell(columnIndices.memo);
 
         // 年齢（inputまたはテキスト表示）
         const ageInput = ageCell ? ageCell.querySelector('input') : null;
