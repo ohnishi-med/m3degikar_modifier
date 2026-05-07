@@ -62,6 +62,7 @@
         insurance: 7,
         dept: 8,
         doctor: 9,
+        patientMemo: 11,
         memo: 12
     };
 
@@ -85,7 +86,7 @@
         if (headerCells.length === 0) return;
 
         // 見つかったものだけ更新（見つからない場合は -1）
-        const newIndices = { status: -1, birthday: -1, age: -1, insurance: -1, dept: -1, doctor: -1, memo: -1 };
+        const newIndices = { status: -1, birthday: -1, age: -1, insurance: -1, dept: -1, doctor: -1, patientMemo: -1, memo: -1 };
 
         headerCells.forEach((cell, index) => {
             const text = cell.innerText.trim();
@@ -95,6 +96,7 @@
             else if (text.includes("保険")) newIndices.insurance = index;
             else if (text.includes("診療科")) newIndices.dept = index;
             else if (text.includes("医師")) newIndices.doctor = index;
+            else if (text.includes("患者メモ")) newIndices.patientMemo = index;
             else if (text.includes("受付メモ")) newIndices.memo = index;
         });
 
@@ -287,12 +289,14 @@
             const doctorCell = getCell(columnIndices.doctor);
             const deptCell = getCell(columnIndices.dept);
             const insuranceCell = getCell(columnIndices.insurance);
+            const patientMemoCell = getCell(columnIndices.patientMemo);
             const memoCell = getCell(columnIndices.memo);
 
             // テキストの抽出
             const statusText = extractCellText(statusCell);
             const ageText = extractCellText(ageCell);
             const deptText = extractCellText(deptCell);
+            const patientMemoText = extractCellText(patientMemoCell);
             const memoText = extractCellText(memoCell);
             const insuranceText = extractCellText(insuranceCell);
             const ageMatch = ageText.match(/^(\d+)/);
@@ -398,7 +402,8 @@
                 !deptText.includes("自由診療") &&
                 !isPastFiscalYearEnd &&
                 !hasPublicExpense &&
-                !memoText.includes("県外");
+                !memoText.includes("県外") &&
+                !patientMemoText.includes("県外");
 
             // 9列目に色を付ける必要があるかどうかの判定
             const isInsuranceCellStyleNeeded =
@@ -471,7 +476,9 @@
         const insuranceCell = getCell(columnIndices.insurance);
         // 10列目 (診療科) - ドロップダウン (select)
         const deptCell = getCell(columnIndices.dept);
-        // 14列目 (受付メモ) - テキストエリア (textarea)
+        // 11列目付近 (患者メモ) - テキストエリア (textarea) またはテキスト
+        const patientMemoCell = getCell(columnIndices.patientMemo);
+        // 12列目付近 (受付メモ) - テキストエリア (textarea) またはテキスト
         const memoCell = getCell(columnIndices.memo);
 
         // 年齢（inputまたはテキスト表示）
@@ -486,7 +493,11 @@
         const deptSelect = deptCell ? deptCell.querySelector('select') : null;
         if (deptSelect) elementsToWatch.push(deptSelect);
 
-        // メモ（textarea）
+        // 患者メモ（textarea等）
+        const patientMemoTextarea = patientMemoCell ? patientMemoCell.querySelector('textarea') : null;
+        if (patientMemoTextarea) elementsToWatch.push(patientMemoTextarea);
+
+        // 受付メモ（textarea等）
         const memoTextarea = memoCell ? memoCell.querySelector('textarea') : null;
         if (memoTextarea) elementsToWatch.push(memoTextarea);
 
